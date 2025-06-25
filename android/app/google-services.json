@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "701252937477",
+    "project_id": "sogongtest-c066f",
+    "storage_bucket": "sogongtest-c066f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:701252937477:android:5ec4cd697b51af9c0f396c",
+        "android_client_info": {
+          "package_name": "com.example.sogong"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBMAA8FQWDKJUPQOtS3-2SQuJGEZ4Emt-0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
