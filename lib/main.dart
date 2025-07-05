@@ -7,8 +7,16 @@ import 'package:table_calendar/table_calendar.dart';
 import 'package:image_picker/image_picker.dart';
 
 void main() async {
+
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
+  await Firebase.initializeApp(
+      options: FirebaseOptions(
+        apiKey: "AIzaSyBMAA8FQWDKJUPQOtS3-2SQuJGEZ4Emt-0",
+        appId: "1:701252937477:android:5ec4cd697b51af9c0f396c",
+        messagingSenderId: "701252937477",
+        projectId: "sogongtest-c066f",
+      ),
+  );
   runApp(const MyApp());
 }
 
