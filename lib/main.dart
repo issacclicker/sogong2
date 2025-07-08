@@ -5,6 +5,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:image_picker/image_picker.dart';
+import 'AuditListPage.dart';
+import 'HomePage.dart';
 
 void main() async {
 
@@ -36,7 +38,7 @@ class MyApp extends StatelessWidget {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           } else if (snapshot.hasData) {
-            return const HomePage();
+            return const HomePage(auditId: "",);
           } else {
             return const WelcomePage();
           }
@@ -70,6 +72,10 @@ class WelcomePage extends StatelessWidget {
               },
               child: const Text("로그인"),
             ),
+            const SizedBox(height: 16,),
+            ElevatedButton(onPressed: (){
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const HomePage(auditId: ' ')));
+            }, child: const Text("테스트"))
           ],
         ),
       ),
@@ -167,7 +173,8 @@ class _LoginPageState extends State<LoginPage> {
         email: emailController.text.trim(),
         password: passwordController.text.trim(),
       );
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomePage()));
+      // Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomePage()));
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AuditListPage()));
     } on FirebaseAuthException catch (e) {
       String message = '로그인 실패';
       if (e.code == 'user-not-found') {
@@ -208,239 +215,239 @@ class _LoginPageState extends State<LoginPage> {
   }
 }
 
-class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+// class HomePage extends StatefulWidget {
+//   const HomePage({super.key});
+//
+//   @override
+//   State<HomePage> createState() => _HomePageState();
+// }
 
-  @override
-  State<HomePage> createState() => _HomePageState();
-}
-
-class _HomePageState extends State<HomePage> {
-  DateTime _focusedDay = DateTime.now();
-  DateTime? _selectedDay;
-  final Map<DateTime, List<String>> _memos = {};
-  final List<String> _sidebarItems = [];
-  bool _isSidebarVisible = false;
-
-  @override
-  void initState() {
-    super.initState();
-    loadUserMemos();
-  }
-
-  Future<void> saveMemo(String text, DateTime date) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    final docRef = FirebaseFirestore.instance
-        .collection('memos')
-        .doc(user.uid)
-        .collection('memo_list')
-        .doc();
-
-    await docRef.set({
-      'text': text,
-      'date': Timestamp.fromDate(date),
-    });
-  }
-
-  Future<void> loadUserMemos() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    final snapshot = await FirebaseFirestore.instance
-        .collection('memos')
-        .doc(user.uid)
-        .collection('memo_list')
-        .get();
-
-    for (var doc in snapshot.docs) {
-      final data = doc.data();
-      final date = (data['date'] as Timestamp).toDate();
-      final key = DateTime(date.year, date.month, date.day);
-      final text = data['text'] as String;
-
-      if (_memos.containsKey(key)) {
-        _memos[key]!.add(text);
-      } else {
-        _memos[key] = [text];
-      }
-
-      if (!_sidebarItems.contains(text)) {
-        _sidebarItems.add(text);
-      }
-    }
-
-    setState(() {});
-  }
-
-  List<String> _getMemosForDay(DateTime day) {
-    return _memos[DateTime(day.year, day.month, day.day)] ?? [];
-  }
-
-  void _addMemo(String text, DateTime date) {
-    final key = DateTime(date.year, date.month, date.day);
-    if (_memos.containsKey(key)) {
-      _memos[key]!.add(text);
-    } else {
-      _memos[key] = [text];
-    }
-    if (!_sidebarItems.contains(text)) {
-      _sidebarItems.add(text);
-    }
-    saveMemo(text, date);
-    setState(() {});
-  }
-
-  void _showAddMenuDialog() {
-    final titleController = TextEditingController();
-    DateTime? pickedDate;
-
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("메뉴 추가"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: titleController,
-              decoration: const InputDecoration(labelText: "메뉴 이름"),
-            ),
-            const SizedBox(height: 10),
-            ElevatedButton(
-              onPressed: () async {
-                final selected = await showDatePicker(
-                  context: context,
-                  initialDate: _focusedDay,
-                  firstDate: DateTime(2000),
-                  lastDate: DateTime(2100),
-                );
-                if (selected != null) pickedDate = selected;
-              },
-              child: const Text("날짜 선택"),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              if (titleController.text.isNotEmpty && pickedDate != null) {
-                _addMemo(titleController.text, pickedDate!);
-              }
-              Navigator.pop(context);
-            },
-            child: const Text("추가"),
-          )
-        ],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("홈 화면"),
-        actions: [
-          IconButton(
-            onPressed: () {
-              setState(() {
-                _isSidebarVisible = !_isSidebarVisible;
-              });
-            },
-            icon: const Icon(Icons.menu),
-          ),
-          IconButton(
-            onPressed: () async {
-              await FirebaseAuth.instance.signOut();
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (_) => const WelcomePage()),
-                    (route) => false,
-              );
-            },
-            icon: const Icon(Icons.logout),
-          )
-        ],
-      ),
-      body: Row(
-        children: [
-          if (_isSidebarVisible)
-            Container(
-              width: 150,
-              color: Colors.grey[200],
-              child: Column(
-                children: [
-                  IconButton(
-                    onPressed: _showAddMenuDialog,
-                    icon: const Icon(Icons.add),
-                  ),
-                  Expanded(
-                    child: ListView.builder(
-                      itemCount: _sidebarItems.length,
-                      itemBuilder: (_, index) => ListTile(
-                        title: Text(_sidebarItems[index]),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => MenuDetailPage(
-                                menuTitle: _sidebarItems[index],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  )
-                ],
-              ),
-            ),
-          Expanded(
-            child: Column(
-              children: [
-                TableCalendar(
-                  focusedDay: _focusedDay,
-                  firstDay: DateTime.utc(2000, 1, 1),
-                  lastDay: DateTime.utc(2100, 12, 31),
-                  selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
-                  onDaySelected: (selectedDay, focusedDay) {
-                    setState(() {
-                      _selectedDay = selectedDay;
-                      _focusedDay = focusedDay;
-                    });
-                  },
-                  calendarBuilders: CalendarBuilders(
-                    markerBuilder: (context, day, events) {
-                      final memos = _getMemosForDay(day);
-                      if (memos.isNotEmpty) {
-                        return Positioned(
-                          bottom: 1,
-                          child: Container(
-                            width: 4,
-                            height: 4,
-                            decoration: const BoxDecoration(
-                              color: Colors.red,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                        );
-                      }
-                      return null;
-                    },
-                  ),
-                ),
-                if (_selectedDay != null)
-                  ..._getMemosForDay(_selectedDay!).map((e) => Text("• $e")),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+// class _HomePageState extends State<HomePage> {
+//   DateTime _focusedDay = DateTime.now();
+//   DateTime? _selectedDay;
+//   final Map<DateTime, List<String>> _memos = {};
+//   final List<String> _sidebarItems = [];
+//   bool _isSidebarVisible = false;
+//
+//   @override
+//   void initState() {
+//     super.initState();
+//     loadUserMemos();
+//   }
+//
+//   Future<void> saveMemo(String text, DateTime date) async {
+//     final user = FirebaseAuth.instance.currentUser;
+//     if (user == null) return;
+//
+//     final docRef = FirebaseFirestore.instance
+//         .collection('memos')
+//         .doc(user.uid)
+//         .collection('memo_list')
+//         .doc();
+//
+//     await docRef.set({
+//       'text': text,
+//       'date': Timestamp.fromDate(date),
+//     });
+//   }
+//
+//   Future<void> loadUserMemos() async {
+//     final user = FirebaseAuth.instance.currentUser;
+//     if (user == null) return;
+//
+//     final snapshot = await FirebaseFirestore.instance
+//         .collection('memos')
+//         .doc(user.uid)
+//         .collection('memo_list')
+//         .get();
+//
+//     for (var doc in snapshot.docs) {
+//       final data = doc.data();
+//       final date = (data['date'] as Timestamp).toDate();
+//       final key = DateTime(date.year, date.month, date.day);
+//       final text = data['text'] as String;
+//
+//       if (_memos.containsKey(key)) {
+//         _memos[key]!.add(text);
+//       } else {
+//         _memos[key] = [text];
+//       }
+//
+//       if (!_sidebarItems.contains(text)) {
+//         _sidebarItems.add(text);
+//       }
+//     }
+//
+//     setState(() {});
+//   }
+//
+//   List<String> _getMemosForDay(DateTime day) {
+//     return _memos[DateTime(day.year, day.month, day.day)] ?? [];
+//   }
+//
+//   void _addMemo(String text, DateTime date) {
+//     final key = DateTime(date.year, date.month, date.day);
+//     if (_memos.containsKey(key)) {
+//       _memos[key]!.add(text);
+//     } else {
+//       _memos[key] = [text];
+//     }
+//     if (!_sidebarItems.contains(text)) {
+//       _sidebarItems.add(text);
+//     }
+//     saveMemo(text, date);
+//     setState(() {});
+//   }
+//
+//   void _showAddMenuDialog() {
+//     final titleController = TextEditingController();
+//     DateTime? pickedDate;
+//
+//     showDialog(
+//       context: context,
+//       builder: (_) => AlertDialog(
+//         title: const Text("메뉴 추가"),
+//         content: Column(
+//           mainAxisSize: MainAxisSize.min,
+//           children: [
+//             TextField(
+//               controller: titleController,
+//               decoration: const InputDecoration(labelText: "메뉴 이름"),
+//             ),
+//             const SizedBox(height: 10),
+//             ElevatedButton(
+//               onPressed: () async {
+//                 final selected = await showDatePicker(
+//                   context: context,
+//                   initialDate: _focusedDay,
+//                   firstDate: DateTime(2000),
+//                   lastDate: DateTime(2100),
+//                 );
+//                 if (selected != null) pickedDate = selected;
+//               },
+//               child: const Text("날짜 선택"),
+//             ),
+//           ],
+//         ),
+//         actions: [
+//           TextButton(
+//             onPressed: () {
+//               if (titleController.text.isNotEmpty && pickedDate != null) {
+//                 _addMemo(titleController.text, pickedDate!);
+//               }
+//               Navigator.pop(context);
+//             },
+//             child: const Text("추가"),
+//           )
+//         ],
+//       ),
+//     );
+//   }
+//
+//   @override
+//   Widget build(BuildContext context) {
+//     return Scaffold(
+//       appBar: AppBar(
+//         title: const Text("홈 화면"),
+//         actions: [
+//           IconButton(
+//             onPressed: () {
+//               setState(() {
+//                 _isSidebarVisible = !_isSidebarVisible;
+//               });
+//             },
+//             icon: const Icon(Icons.menu),
+//           ),
+//           IconButton(
+//             onPressed: () async {
+//               await FirebaseAuth.instance.signOut();
+//               Navigator.pushAndRemoveUntil(
+//                 context,
+//                 MaterialPageRoute(builder: (_) => const WelcomePage()),
+//                     (route) => false,
+//               );
+//             },
+//             icon: const Icon(Icons.logout),
+//           )
+//         ],
+//       ),
+//       body: Row(
+//         children: [
+//           if (_isSidebarVisible)
+//             Container(
+//               width: 150,
+//               color: Colors.grey[200],
+//               child: Column(
+//                 children: [
+//                   IconButton(
+//                     onPressed: _showAddMenuDialog,
+//                     icon: const Icon(Icons.add),
+//                   ),
+//                   Expanded(
+//                     child: ListView.builder(
+//                       itemCount: _sidebarItems.length,
+//                       itemBuilder: (_, index) => ListTile(
+//                         title: Text(_sidebarItems[index]),
+//                         onTap: () {
+//                           Navigator.push(
+//                             context,
+//                             MaterialPageRoute(
+//                               builder: (_) => MenuDetailPage(
+//                                 menuTitle: _sidebarItems[index],
+//                               ),
+//                             ),
+//                           );
+//                         },
+//                       ),
+//                     ),
+//                   )
+//                 ],
+//               ),
+//             ),
+//           Expanded(
+//             child: Column(
+//               children: [
+//                 TableCalendar(
+//                   focusedDay: _focusedDay,
+//                   firstDay: DateTime.utc(2000, 1, 1),
+//                   lastDay: DateTime.utc(2100, 12, 31),
+//                   selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+//                   onDaySelected: (selectedDay, focusedDay) {
+//                     setState(() {
+//                       _selectedDay = selectedDay;
+//                       _focusedDay = focusedDay;
+//                     });
+//                   },
+//                   calendarBuilders: CalendarBuilders(
+//                     markerBuilder: (context, day, events) {
+//                       final memos = _getMemosForDay(day);
+//                       if (memos.isNotEmpty) {
+//                         return Positioned(
+//                           bottom: 1,
+//                           child: Container(
+//                             width: 4,
+//                             height: 4,
+//                             decoration: const BoxDecoration(
+//                               color: Colors.red,
+//                               shape: BoxShape.circle,
+//                             ),
+//                           ),
+//                         );
+//                       }
+//                       return null;
+//                     },
+//                   ),
+//                 ),
+//                 if (_selectedDay != null)
+//                   ..._getMemosForDay(_selectedDay!).map((e) => Text("• $e")),
+//               ],
+//             ),
+//           ),
+//         ],
+//       ),
+//     );
+//   }
+// }
 
 class MenuDetailPage extends StatefulWidget {
   final String menuTitle;
