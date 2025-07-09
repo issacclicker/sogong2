@@ -18,8 +18,11 @@ class GalleryUploadPage extends StatefulWidget {
 
 class _GalleryUploadPageState extends State<GalleryUploadPage> {
   final ImagePicker _picker = ImagePicker();
-  // 동적으로 추가되는 좌측 목록 데이터
-  final List<String> _options = [];
+
+  // 동적으로 추가되는 좌측 목록 데이터 (name, category)
+  final List<Map<String, String>> _options = [];
+  // 동적으로 추가되는 카테고리 목록
+  final List<String> _categories = ['Work', 'Personal', 'Event', 'Other'];
   int _selectedOptionIndex = -1;
   // 각 옵션별 업로드된 이미지를 저장할 맵
   final Map<int, XFile?> _optionImages = {};
@@ -41,33 +44,93 @@ class _GalleryUploadPageState extends State<GalleryUploadPage> {
     }
   }
 
-  // 좌측 바에 새 옵션을 추가하는 다이얼로그
-  void _showAddOptionDialog() {
-    final controller = TextEditingController();
+  // 카테고리 추가 다이얼로그
+  void _showAddCategoryDialog() {
+    final TextEditingController categoryController = TextEditingController();
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('항목 추가'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(labelText: '항목 이름'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              final text = controller.text.trim();
-              if (text.isNotEmpty) {
-                setState(() {
-                  _options.add(text);
-                  _selectedOptionIndex = _options.length - 1;
-                });
-              }
-              Navigator.pop(context);
-            },
-            child: const Text('추가'),
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('카테고리 추가'),
+          content: TextField(
+            controller: categoryController,
+            decoration: const InputDecoration(labelText: '카테고리 이름'),
           ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                final cat = categoryController.text.trim();
+                if (cat.isNotEmpty) {
+                  setState(() {
+                    _categories.add(cat);
+                  });
+                }
+                Navigator.pop(context);
+              },
+              child: const Text('추가'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // 좌측 바에 새 옵션을 추가하는 다이얼로그
+  void _showAddOptionDialog() {
+    final TextEditingController nameController = TextEditingController();
+    String tempCategory = _categories.first;
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('항목 추가'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: nameController,
+                    decoration: const InputDecoration(labelText: '항목 이름'),
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButton<String>(
+                    value: tempCategory,
+                    items: _categories
+                        .map((cat) => DropdownMenuItem(value: cat, child: Text(cat)))
+                        .toList(),
+                    onChanged: (val) {
+                      if (val != null) {
+                        setDialogState(() {
+                          tempCategory = val;
+                        });
+                      }
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    final name = nameController.text.trim();
+                    if (name.isNotEmpty) {
+                      setState(() {
+                        _options.add({
+                          'name': name,
+                          'category': tempCategory,
+                        });
+                        _selectedOptionIndex = _options.length - 1;
+                      });
+                    }
+                    Navigator.pop(context);
+                  },
+                  child: const Text('추가'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
@@ -81,11 +144,17 @@ class _GalleryUploadPageState extends State<GalleryUploadPage> {
         children: [
           // 좌측 목록 바
           Container(
-            width: 120,
+            width: 140,
             color: Colors.grey[200],
             child: Column(
               children: [
-                // + 버튼
+                // 카테고리 추가 버튼
+                IconButton(
+                  icon: const Icon(Icons.category),
+                  tooltip: '카테고리 추가',
+                  onPressed: _showAddCategoryDialog,
+                ),
+                // 항목 추가 버튼
                 IconButton(
                   icon: const Icon(Icons.add),
                   tooltip: '항목 추가',
@@ -97,9 +166,11 @@ class _GalleryUploadPageState extends State<GalleryUploadPage> {
                   child: ListView.builder(
                     itemCount: _options.length,
                     itemBuilder: (context, index) {
+                      final opt = _options[index];
                       return ListTile(
                         selected: index == _selectedOptionIndex,
-                        title: Text(_options[index]),
+                        title: Text(opt['name']!),
+                        subtitle: Text(opt['category']!),
                         onTap: () {
                           setState(() {
                             _selectedOptionIndex = index;
@@ -118,17 +189,20 @@ class _GalleryUploadPageState extends State<GalleryUploadPage> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // 선택된 템플릿 표시
+                  // 선택된 템플릿 및 카테고리 표시
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8.0),
                     child: Text(
-                      '템플릿: ${widget.template}',
+                      '템플릿: ${widget.template}   카테고리: ${_selectedOptionIndex >= 0 ? _options[_selectedOptionIndex]['category'] : '-'}',
                       style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                   ),
                   // 선택된 옵션의 이미지 미리보기
                   if (_selectedOptionIndex >= 0 && _optionImages[_selectedOptionIndex] != null)
-                    Image.file(File(_optionImages[_selectedOptionIndex]!.path), width: 300)
+                    Image.file(
+                      File(_optionImages[_selectedOptionIndex]!.path),
+                      width: 300,
+                    )
                   else
                     const Text('선택된 사진 없음'),
                   const SizedBox(height: 20),
