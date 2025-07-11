@@ -79,14 +79,13 @@ class _CategoryAddPageState extends State<CategoryAddPage> {
                 if (v == null) return;
                 setState(() {
                   _selectedCategory = v;
-                  // 대분류 변경 시 서브 분류도 첫 항목으로 초기화
                   _selectedSubcategory = _defaultOptions[v]!.first;
                 });
               },
             ),
             const SizedBox(height: 20),
 
-            // 2) 소분류(세부 분류) 선택 드롭다운
+            // 2) 소분류 선택 드롭다운
             const Text('세부 분류'),
             DropdownButton<String>(
               value: _selectedSubcategory,
@@ -105,31 +104,44 @@ class _CategoryAddPageState extends State<CategoryAddPage> {
             ),
             const SizedBox(height: 30),
 
-            // 3) 툴팁 영역
-            Row(
+            // 3) 힌트 영역
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 세부 분류에 대한 툴팁
-                Tooltip(
-                  message: '세부 분류 선택: $_selectedSubcategory',
-                  child: Row(
-                    children: const [
-                      Icon(Icons.info_outline, size: 20),
-                      SizedBox(width: 4),
-                      Text('세부 분류 힌트'),
-                    ],
-                  ),
+                // 대분류 힌트 (영수증빙자료일 때 커스텀 텍스트)
+                Row(
+                  children: [
+                    const Icon(Icons.help_outline, size: 20),
+                    const SizedBox(width: 4),
+                    Text(
+                      _selectedCategory == '영수증빙자료'
+                          ? '이렇게 어떻게 해요?'
+                          : '대분류 선택: $_selectedCategory',
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 24),
-                // 대분류에 대한 툴팁
-                Tooltip(
-                  message: '대분류 선택: $_selectedCategory',
-                  child: Row(
-                    children: const [
-                      Icon(Icons.help_outline, size: 20),
-                      SizedBox(width: 4),
-                      Text('대분류 힌트'),
-                    ],
-                  ),
+                const SizedBox(height: 10),
+                // 추가 힌트: 배달
+                Text(
+                  _selectedCategory == '영수증빙자료'
+                      ? '배달 : 영수증에 배달팁 명시 필수!'
+                      : '',
+                ),
+                const SizedBox(height: 10),
+                // 추가 힌트: 결제취소
+                Text(
+                  _selectedCategory == '영수증빙자료'
+                      ? '결제취소 : 취소시 발급되는 영수증 필수!'
+                      : '',
+                ),
+                const SizedBox(height: 20),
+                // 세부 분류 힌트
+                Row(
+                  children: [
+                    const Icon(Icons.info_outline, size: 20),
+                    const SizedBox(width: 4),
+                    Text('세부 분류 선택: $_selectedSubcategory'),
+                  ],
                 ),
               ],
             ),
@@ -140,7 +152,6 @@ class _CategoryAddPageState extends State<CategoryAddPage> {
             Center(
               child: ElevatedButton(
                 onPressed: () {
-                  // 선택된 대분류/세부분류를 넘기고 페이지 닫기
                   Navigator.pop<Map<String, String>>(
                     context,
                     {
