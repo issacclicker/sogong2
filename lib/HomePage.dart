@@ -1,11 +1,15 @@
-// home_page.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:image_picker/image_picker.dart';
-import 'gallery_upload_page.dart';
+import 'menu_detail_page.dart'; // ✅ 상대 경로로!
+
+
+
+import 'category_add_page.dart';
+import 'menu_detail_page.dart';
 
 class HomePage extends StatefulWidget {
   final String auditId;
@@ -35,7 +39,7 @@ class _HomePageState extends State<HomePage> {
         .collection('audits')
         .doc(_auditId)
         .collection('schedules')
-        .add({ 'text': text, 'date': Timestamp.fromDate(date) });
+        .add({'text': text, 'date': Timestamp.fromDate(date)});
   }
 
   Future<void> loadSchedules() async {
@@ -122,12 +126,6 @@ class _HomePageState extends State<HomePage> {
                 final text = titleController.text;
                 if (text.isNotEmpty) _addSchedule(text, dateToUse);
                 Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => GalleryUploadPage(template: selectedTemplate),
-                  ),
-                );
               },
               child: const Text("추가"),
             ),
@@ -139,6 +137,20 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    // ✅ 대분류/소분류 그룹 + 일정 그룹 나누기
+    final Map<String, List<String>> groupedSidebarItems = {
+      '일정 목록': [],
+    };
+
+    for (var item in _sidebarItems) {
+      final parts = item.split(" > ");
+      if (parts.length == 2) {
+        groupedSidebarItems.putIfAbsent(parts[0], () => []).add(parts[1]);
+      } else {
+        groupedSidebarItems['일정 목록']!.add(item);
+      }
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text("홈 화면"),
@@ -160,7 +172,7 @@ class _HomePageState extends State<HomePage> {
         children: [
           if (_isSidebarVisible)
             Container(
-              width: 150,
+              width: 200,
               color: Colors.grey[200],
               child: Column(
                 children: [
@@ -168,20 +180,51 @@ class _HomePageState extends State<HomePage> {
                     icon: const Icon(Icons.add),
                     onPressed: _showAddScheduleDialog,
                   ),
+                  const Divider(),
                   Expanded(
-                    child: ListView.builder(
-                      itemCount: _sidebarItems.length,
-                      itemBuilder: (_, i) => ListTile(
-                        title: Text(_sidebarItems[i]),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => GalleryUploadPage(template: "기본"),
-                            ),
-                          );
-                        },
-                      ),
+                    child: ListView(
+                      children: groupedSidebarItems.entries.expand((entry) {
+                        if (entry.key == '일정 목록') {
+                          // ✅ 일정 목록은 항상 펼쳐져 있는 상태로 표시
+                          return entry.value.map((sub) {
+                            return ListTile(
+                              title: Text(sub),
+                              onTap: () async {
+                                final result = await Navigator.push<Map<String, List<String>>>(
+                                  context,
+                                  MaterialPageRoute(
+                                    // ✅ 아래처럼 수정
+                                    builder: (_) => MenuDetailSidebarPage(),
+
+                                  ),
+                                );
+
+                                if (result != null) {
+                                  result.forEach((category, subs) {
+                                    for (var s in subs) {
+                                      final text = "$category > $s";
+                                      if (!_sidebarItems.contains(text)) {
+                                        _sidebarItems.add(text);
+                                      }
+                                    }
+                                  });
+                                  setState(() {});
+                                }
+                              },
+                            );
+                          }).toList();
+                        } else {
+                          // ✅ 나머지 대분류 항목은 접을 수 있도록 유지
+                          return [
+                            ExpansionTile(
+                              title: Text(entry.key),
+                              children: entry.value.map((sub) {
+                                return ListTile(title: Text(sub));
+                              }).toList(),
+                            )
+                          ];
+                        }
+                      }).toList(),
                     ),
                   ),
                 ],
@@ -220,8 +263,7 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
                 if (_selectedDay != null)
-                  ..._getSchedulesForDay(_selectedDay!)
-                      .map((e) => Padding(
+                  ..._getSchedulesForDay(_selectedDay!).map((e) => Padding(
                     padding: const EdgeInsets.all(8.0),
                     child: Text("• $e"),
                   )),
