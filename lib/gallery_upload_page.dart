@@ -16,6 +16,33 @@ class GalleryUploadPage extends StatefulWidget {
 class _GalleryUploadPageState extends State<GalleryUploadPage> {
   XFile? _pickedImage;
   final ImagePicker _picker = ImagePicker();
+  String? _downloadedUrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadImageFromFirestore(); // 🔁 이전에 올린 이미지 불러오기
+  }
+
+  Future<void> _loadImageFromFirestore() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final snapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('uploadedImages')
+        .where('template', isEqualTo: widget.template)
+        .orderBy('uploadedAt', descending: true)
+        .limit(1)
+        .get();
+
+    if (snapshot.docs.isNotEmpty) {
+      setState(() {
+        _downloadedUrl = snapshot.docs.first['url'];
+      });
+    }
+  }
 
   Future<void> _pickImage() async {
     final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
@@ -45,6 +72,10 @@ class _GalleryUploadPageState extends State<GalleryUploadPage> {
       'url': downloadUrl,
       'uploadedAt': Timestamp.now(),
     });
+
+    setState(() {
+      _downloadedUrl = downloadUrl;
+    });
   }
 
   @override
@@ -56,6 +87,8 @@ class _GalleryUploadPageState extends State<GalleryUploadPage> {
         const SizedBox(height: 16),
         _pickedImage != null
             ? Image.file(File(_pickedImage!.path), width: 300)
+            : _downloadedUrl != null
+            ? Image.network(_downloadedUrl!, width: 300)
             : const Text("선택된 사진 없음"),
         const SizedBox(height: 20),
         ElevatedButton(
