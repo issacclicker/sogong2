@@ -1,9 +1,8 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'category_add_page.dart';
-import 'package:sogong/gallery_upload_page.dart'; // GalleryUploadPage 정의된 곳
-
+import 'gallery_upload_page.dart';
 
 class MenuDetailSidebarPage extends StatefulWidget {
   const MenuDetailSidebarPage({super.key});
@@ -17,7 +16,40 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
   String? _selectedCategory;
   String? _selectedSubcategory;
 
-  void _addItem(String category, String subcategory) {
+  @override
+  void initState() {
+    super.initState();
+    _loadCategoriesFromFirestore(); // ✅ Firestore에서 항목 불러오기
+  }
+
+  Future<void> _loadCategoriesFromFirestore() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final snapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('categories')
+        .orderBy('createdAt')
+        .get();
+
+    for (var doc in snapshot.docs) {
+      final data = doc.data();
+      final category = data['category'] as String;
+      final subcategory = data['subcategory'] as String;
+      _categoryMap.putIfAbsent(category, () => []);
+      if (!_categoryMap[category]!.contains(subcategory)) {
+        _categoryMap[category]!.add(subcategory);
+      }
+    }
+
+    setState(() {});
+  }
+
+  void _addItem(String category, String subcategory) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
     setState(() {
       _categoryMap.putIfAbsent(category, () => []);
       if (!_categoryMap[category]!.contains(subcategory)) {
@@ -25,6 +57,17 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
       }
       _selectedCategory = category;
       _selectedSubcategory = subcategory;
+    });
+
+    // ✅ Firestore에 저장
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('categories')
+        .add({
+      'category': category,
+      'subcategory': subcategory,
+      'createdAt': Timestamp.now(),
     });
   }
 

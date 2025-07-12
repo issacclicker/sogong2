@@ -1,6 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class GalleryUploadPage extends StatefulWidget {
   final String template;
@@ -16,12 +19,32 @@ class _GalleryUploadPageState extends State<GalleryUploadPage> {
 
   Future<void> _pickImage() async {
     final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+    if (image == null) return;
 
-    if (image != null) {
-      setState(() {
-        _pickedImage = image;
-      });
-    }
+    setState(() {
+      _pickedImage = image;
+    });
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final file = File(image.path);
+    final ref = FirebaseStorage.instance
+        .ref()
+        .child('uploads/${user.uid}/${DateTime.now().millisecondsSinceEpoch}.jpg');
+
+    await ref.putFile(file);
+    final downloadUrl = await ref.getDownloadURL();
+
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('uploadedImages')
+        .add({
+      'template': widget.template,
+      'url': downloadUrl,
+      'uploadedAt': Timestamp.now(),
+    });
   }
 
   @override
