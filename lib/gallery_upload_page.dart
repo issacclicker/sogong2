@@ -6,7 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class GalleryUploadPage extends StatefulWidget {
-  final String template;
+  final String template; // ex: "영수증 > 카드전표"
   const GalleryUploadPage({super.key, required this.template});
 
   @override
@@ -16,12 +16,12 @@ class GalleryUploadPage extends StatefulWidget {
 class _GalleryUploadPageState extends State<GalleryUploadPage> {
   XFile? _pickedImage;
   final ImagePicker _picker = ImagePicker();
-  String? _downloadedUrl;
+  String? _imageUrl;
 
   @override
   void initState() {
     super.initState();
-    _loadImageFromFirestore(); // 🔁 이전에 올린 이미지 불러오기
+    _loadImageFromFirestore(); // ✅ Firestore에서 사진 불러오기
   }
 
   Future<void> _loadImageFromFirestore() async {
@@ -38,8 +38,9 @@ class _GalleryUploadPageState extends State<GalleryUploadPage> {
         .get();
 
     if (snapshot.docs.isNotEmpty) {
+      final url = snapshot.docs.first['url'] as String;
       setState(() {
-        _downloadedUrl = snapshot.docs.first['url'];
+        _imageUrl = url;
       });
     }
   }
@@ -55,14 +56,14 @@ class _GalleryUploadPageState extends State<GalleryUploadPage> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    final file = File(image.path);
     final ref = FirebaseStorage.instance
         .ref()
         .child('uploads/${user.uid}/${DateTime.now().millisecondsSinceEpoch}.jpg');
 
-    await ref.putFile(file);
+    await ref.putFile(File(image.path));
     final downloadUrl = await ref.getDownloadURL();
 
+    // ✅ Firestore에 업로드 정보 저장
     await FirebaseFirestore.instance
         .collection('users')
         .doc(user.uid)
@@ -74,22 +75,24 @@ class _GalleryUploadPageState extends State<GalleryUploadPage> {
     });
 
     setState(() {
-      _downloadedUrl = downloadUrl;
+      _imageUrl = downloadUrl;
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    final imageWidget = _pickedImage != null
+        ? Image.file(File(_pickedImage!.path), width: 300)
+        : _imageUrl != null
+        ? Image.network(_imageUrl!, width: 300)
+        : const Text("사진 없음");
+
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Text(widget.template, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         const SizedBox(height: 16),
-        _pickedImage != null
-            ? Image.file(File(_pickedImage!.path), width: 300)
-            : _downloadedUrl != null
-            ? Image.network(_downloadedUrl!, width: 300)
-            : const Text("선택된 사진 없음"),
+        imageWidget,
         const SizedBox(height: 20),
         ElevatedButton(
           onPressed: _pickImage,
