@@ -19,9 +19,9 @@ class MenuDetailSidebarPage extends StatefulWidget {
 }
 
 class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
-  final Map<String, List<String>> _categoryMap = {};
+  final Map<String, List<Map<String, String>>> _categoryMap = {};
   String? _selectedCategory;
-  String? _selectedSubcategory;
+  Map<String, String>? _selectedSubcategoryInfo;
 
   @override
   void initState() {
@@ -48,26 +48,32 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
       final data = doc.data();
       final category = data['category'] as String;
       final subcategory = data['subcategory'] as String;
+      final displayName = data['displayName'] as String;
+
       _categoryMap.putIfAbsent(category, () => []);
-      if (!_categoryMap[category]!.contains(subcategory)) {
-        _categoryMap[category]!.add(subcategory);
-      }
+      _categoryMap[category]!.add({
+        'subcategory': subcategory,
+        'displayName': displayName,
+      });
     }
 
     setState(() {});
   }
 
-  Future<void> _addItem(String category, String subcategory) async {
+  Future<void> _addItem(String category, String subcategory, String displayName) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
+    final newItem = {
+      'subcategory': subcategory,
+      'displayName': displayName,
+    };
+
     setState(() {
       _categoryMap.putIfAbsent(category, () => []);
-      if (!_categoryMap[category]!.contains(subcategory)) {
-        _categoryMap[category]!.add(subcategory);
-      }
+      _categoryMap[category]!.add(newItem);
       _selectedCategory = category;
-      _selectedSubcategory = subcategory;
+      _selectedSubcategoryInfo = newItem;
     });
 
     await FirebaseFirestore.instance
@@ -81,6 +87,7 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
         .add({
       'category': category,
       'subcategory': subcategory,
+      'displayName': displayName,
       'createdAt': Timestamp.now(),
     });
   }
@@ -94,7 +101,8 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
     if (result != null) {
       final category = result['category']!;
       final subcategory = result['subcategory']!;
-      await _addItem(category, subcategory);
+      final displayName = result['displayName']!;
+      await _addItem(category, subcategory, displayName);
     }
   }
 
@@ -119,16 +127,29 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
                   child: ListView(
                     children: _categoryMap.entries.map((entry) {
                       final category = entry.key;
-                      final subcategories = entry.value;
+                      final subcategoryInfoList = entry.value;
                       return ExpansionTile(
                         title: Text(category, style: const TextStyle(fontWeight: FontWeight.bold)),
-                        children: subcategories.map((sub) {
+                        children: subcategoryInfoList.map((info) {
+                          final subcategory = info['subcategory']!;
+                          final displayName = info['displayName']!;
+                          final bool showSubcategory = displayName != subcategory;
+
                           return ListTile(
-                            title: Text(sub),
+                            title: Text(displayName),
+                            subtitle: showSubcategory
+                                ? Text(
+                                    subcategory,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey[700],
+                                    ),
+                                  )
+                                : null,
                             onTap: () {
                               setState(() {
                                 _selectedCategory = category;
-                                _selectedSubcategory = sub;
+                                _selectedSubcategoryInfo = info;
                               });
                             },
                           );
@@ -142,12 +163,12 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
           ),
           const VerticalDivider(width: 1),
           Expanded(
-            child: _selectedSubcategory == null
+            child: _selectedSubcategoryInfo == null
                 ? const Center(child: Text("세부분류를 선택해주세요"))
                 : GalleryUploadPage(
               auditId: widget.auditId,
               scheduleId: widget.scheduleId,
-              template: '$_selectedCategory > $_selectedSubcategory',
+              template: '$_selectedCategory > ${_selectedSubcategoryInfo!['displayName']}',
             ),
           ),
         ],
