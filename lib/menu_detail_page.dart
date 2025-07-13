@@ -21,7 +21,11 @@ class MenuDetailSidebarPage extends StatefulWidget {
 
 class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
   // 데이터 구조를 미리 초기화하여 항상 키가 존재하도록 보장
-  Map<String, List<Map<String, dynamic>>> _categoryData = {};
+  Map<String, List<Map<String, dynamic>>> _categoryData = {
+    '영수증빙자료': [],
+    '보충영수증빙자료': [],
+    '기타증빙자료': [],
+  };
   Map<String, dynamic>? _selectedItemInfo;
   bool _isLoading = true;
   bool _isSendingEmail = false;
@@ -36,8 +40,15 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
   Future<void> _loadDataFromFirestore() async {
     setState(() {
       _isLoading = true;
-      // 각 카테고리의 리스트만 비움
-      _categoryData.forEach((_, list) => list.clear());
+      // 각 카테고리의 리스트만 비움 (기본 카테고리는 유지)
+      _categoryData.forEach((key, list) {
+        if (['영수증빙자료', '보충영수증빙자료', '기타증빙자료'].contains(key)) {
+          list.clear(); // Clear items within default categories
+        } else {
+          // Remove categories that are not default and have no items
+          // This part might need more sophisticated logic if dynamic categories are allowed
+        }
+      });
     });
 
     final user = FirebaseAuth.instance.currentUser;
@@ -91,7 +102,7 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
     if (isCreatingFolder) {
       final result = await Navigator.push<Map<String, String>>(
         context,
-        MaterialPageRoute(builder: (_) => const CategoryAddPage()),
+        MaterialPageRoute(builder: (_) => CategoryAddPage(initialCategory: category, isForFolder: true)),
       );
 
       if (result != null) {
@@ -509,10 +520,11 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
           ReorderableListView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
+            buildDefaultDragHandles: false, // Add this line
             itemCount: items.length,
             itemBuilder: (context, index) {
               final item = items[index];
-              return _buildItemWidget(item, categoryName, key: ValueKey(item['id']));
+              return _buildItemWidget(item, categoryName, key: ValueKey(item['id']), itemIndex: index); // Pass itemIndex
             },
             onReorder: (oldIndex, newIndex) {
               _updateItemOrder(categoryName, oldIndex, newIndex);
@@ -565,7 +577,10 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
             const Icon(Icons.folder, color: Colors.orange),
             const SizedBox(width: 8),
             Expanded(child: Text(item['displayName'], style: const TextStyle(fontSize: 14))),
-            Spacer(), // Add space before edit icon
+            ReorderableDragStartListener(
+              index: itemIndex!, // Use itemIndex here
+              child: const Icon(Icons.drag_handle, size: 20), // Drag handle for folders
+            ),
             IconButton(
               icon: const Icon(Icons.edit, size: 20),
               onPressed: () => _showEditOrDeleteChoiceDialog(item),
@@ -582,6 +597,7 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
           ReorderableListView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
+            buildDefaultDragHandles: false, // Add this line
             itemCount: (item['items'] as List<Map<String, dynamic>>).length,
             itemBuilder: (context, index) {
               final childItem = (item['items'] as List<Map<String, dynamic>>)[index];
@@ -597,9 +613,18 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
       return ListTile(
         key: key, // Add key for ReorderableListView
         title: Text(item['displayName'], style: const TextStyle(fontSize: 14)),
-        trailing: IconButton(
-          icon: const Icon(Icons.edit, size: 20),
-          onPressed: () => _showEditOrDeleteChoiceDialog(item),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ReorderableDragStartListener(
+              index: itemIndex!, // Use itemIndex here
+              child: const Icon(Icons.drag_handle, size: 20), // Drag handle for items
+            ),
+            IconButton(
+              icon: const Icon(Icons.edit, size: 20),
+              onPressed: () => _showEditOrDeleteChoiceDialog(item),
+            ),
+          ],
         ),
         onTap: () {
           setState(() {

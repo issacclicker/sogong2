@@ -20,6 +20,7 @@ class _HomePageState extends State<HomePage> {
   final Map<DateTime, List<String>> _schedules = {};
   final List<String> _sidebarItems = [];
   bool _isSidebarVisible = false;
+  String? _duplicateScheduleError;
 
   @override
   void initState() {
@@ -72,7 +73,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _showTemplateSelectionDialog(String originalName, DateTime date) {
-    const templates = ["새내기 배움터", "MT", "간식행사","뒤풀이", "기본"];
+    const templates = ["뒤풀이", "공동구매(ex.과잠)","단체행사(ex.새내기 새로배움터, MT 등)" ,"체육대회","간식행사","축제","인스타그램 비대면 행사","기념일 행사","대여사업","소모임 지원금 사업"];
     String selectedTemplate = templates[0];
 
     showDialog(
@@ -175,38 +176,215 @@ class _HomePageState extends State<HomePage> {
           ]},
           {'type': 'folder', 'category': '보충영수증빙자료', 'displayName': '회비 납부자 명단'},
           {'type': 'folder', 'category': '보충영수증빙자료', 'displayName': '공지사항'},
-          {'type': 'folder', 'category': '기타증빙자료', 'displayName': '참가자 명단'},
+          {'type': 'folder', 'category': '보충영수증빙자료', 'displayName': '참가자 명단'},
           {'type': 'folder', 'category': '기타증빙자료', 'displayName': '사진자료'},
         ];
-      case "새내기 배움터":
+      case "공동구매(ex.과잠)":
         return [
-          {'type': 'folder', 'category': '영수증빙자료', 'displayName': '식비', 'items': [
-            {'type': 'item', 'category': '영수증빙자료', 'displayName': '1일차 점심'},
-            {'type': 'item', 'category': '영수증빙자료', 'displayName': '1일차 저녁'},
-            {'type': 'item', 'category': '영수증빙자료', 'displayName': '2일차 아침'},
+          {'type': 'folder', 'category': '영수증빙자료', 'displayName': '거래명세표', 'items': [
+            {'type': 'item', 'category': '영수증빙자료', 'displayName': '28포차'}
           ]},
-          {'type': 'folder', 'category': '영수증빙자료', 'displayName': '교통비', 'items': [
-            {'type': 'item', 'category': '영수증빙자료', 'displayName': '버스 대절'},
+          {'type': 'folder', 'category': '영수증빙자료', 'displayName': '카드전표(카드결제)'},
+          {'type': 'folder', 'category': '영수증빙자료', 'displayName': '이체증(계좌이체)'},
+          {'type': 'folder', 'category': '보충영수증빙자료', 'displayName': '회비 납부자 명단'},
+          {'type': 'folder', 'category': '보충영수증빙자료', 'displayName': '공지사항'},
+          {'type': 'folder', 'category': '보충영수증빙자료', 'displayName': '상품 수령 명단'},
+          {'type': 'folder', 'category': '기타증빙자료', 'displayName': '사진자료', 'items': [
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '공동구매 구매사진'},
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '공동구매 수령사진(*품목 당 1개 이상 제출)'},
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '남은 물품 있는 경우 보관사진'}
           ]},
-          {'type': 'item', 'category': '기타증빙자료', 'displayName': '참가자 명단'},
-          {'type': 'item', 'category': '기타증빙자료', 'displayName': '행사 계획서'},
-        ];
-      case "MT":
-        return [
-          {'type': 'folder', 'category': '영수증빙자료', 'displayName': '장보기', 'items': [
-            {'type': 'item', 'category': '영수증빙자료', 'displayName': '1차 장보기'},
-            {'type': 'item', 'category': '영수증빙자료', 'displayName': '2차 장보기'},
-          ]},
-          {'type': 'folder', 'category': '영수증빙자료', 'displayName': '숙소', 'items': [
-            {'type': 'item', 'category': '영수증빙자료', 'displayName': '숙소 예약금'},
-            {'type': 'item', 'category': '영수증빙자료', 'displayName': '숙소 잔금'},
-          ]},
-          {'type': 'item', 'category': '기타증빙자료', 'displayName': 'MT 참가자 명단'},
         ];
       case "간식행사":
         return [
-          {'type': 'item', 'category': '영수증빙자료', 'displayName': '간식 구매'},
-          {'type': 'item', 'category': '기타증빙자료', 'displayName': '수령자 명단'},
+          {'type': 'folder', 'category': '영수증빙자료', 'displayName': '거래명세표', 'items': [
+            {'type': 'item', 'category': '영수증빙자료', 'displayName': '간식 가게 이름'}
+          ]},
+          {'type': 'folder', 'category': '영수증빙자료', 'displayName': '카드전표(카드결제)'},
+          {'type': 'folder', 'category': '영수증빙자료', 'displayName': '이체증(계좌이체)'},
+          {'type': 'folder', 'category': '영수증빙자료', 'displayName': '배달전표(배달비용이 있는 경우)'},
+          {'type': 'folder', 'category': '보충영수증빙자료', 'displayName': '공지사항'},
+          {'type': 'folder', 'category': '보충영수증빙자료', 'displayName': '상품 수령 명단'},
+          {'type': 'folder', 'category': '기타증빙자료', 'displayName': '사진자료', 'items': [
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '행사 진행사진'},
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '간식 수령사진'},
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '남은 물품 있는 경우 보관사진'}
+          ]},
+        ];
+      case "체육대회":
+        return [
+          {'type': 'folder', 'category': '영수증빙자료', 'displayName': '매출전표', 'items': [
+            {'type': 'item', 'category': '영수증빙자료', 'displayName': '물품 구매'},
+            {'type': 'item', 'category': '영수증빙자료', 'displayName': '상품 구매'}
+          ]},
+          {'type': 'folder', 'category': '영수증빙자료', 'displayName': '카드전표(카드번호가 미비한 경우)'},
+          {'type': 'folder', 'category': '영수증빙자료', 'displayName': '거래명세표(거래내역이 미비한 경우)'},
+          {'type': 'folder', 'category': '보충영수증빙자료', 'displayName': '공지사항'},
+          {'type': 'folder', 'category': '보충영수증빙자료', 'displayName': '회비 납부자 명단'},
+          {'type': 'folder', 'category': '보충영수증빙자료', 'displayName': '참여자 명단'},
+          {'type': 'folder', 'category': '보충영수증빙자료', 'displayName': '상품 수령 명단'},
+          {'type': 'folder', 'category': '기타증빙자료', 'displayName': '입금자명상이 증빙자료(필요시)'},
+          {'type': 'folder', 'category': '기타증빙자료', 'displayName': '당첨자선정 증빙자료'},
+          {'type': 'folder', 'category': '기타증빙자료', 'displayName': '사진자료', 'items': [
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '행사 진행사진'},
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '물품 구매사진'},
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '물품 사용사진'},
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '상품 구매사진'},
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '상품 수령사진'},
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '남은 물품 있는 경우 보관사진'}
+          ]},
+        ];
+      case "인스타그램 비대면 행사":
+        return [
+          {'type': 'folder', 'category': '영수증빙자료', 'displayName': '카드전표', 'items': [
+            {'type': 'item', 'category': '영수증빙자료', 'displayName': '(ex)0월0일 빽다방 쿠폰'}
+          ]},
+          {'type': 'folder', 'category': '영수증빙자료', 'displayName': '카카오톡 주문내역(카카오톡 선물하기의 경우, 거래명세표 역할)', 'items': [
+            {'type': 'item', 'category': '영수증빙자료', 'displayName': '(ex)0월0일 빽다방 쿠폰'},
+          ]},
+          {'type': 'folder', 'category': '보충증빙자료', 'displayName': '참여자 명단(인스타그램 아이디 명시)'},
+          {'type': 'folder', 'category': '보충증빙자료', 'displayName': '상품수령 명단'},
+          {'type': 'folder', 'category': '기타증빙자료', 'displayName': '공지사항'},
+          {'type': 'folder', 'category': '기타증빙자료', 'displayName': '당첨자선정 증빙자료', 'items' : [
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '스토리의 경우 언급날짜가 포함된 당첨자 스토리 제출'},
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '댓글의 경우 댓글 단 내역 제출'},
+          ]},
+          {'type': 'folder', 'category': '기타증빙자료', 'displayName': '대리작성동의 증빙자료', 'items': [
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '대리작성동의 증빙자료(상품 수령 명단)'}
+          ]},
+        ];
+      case "기념일 행사":
+        return [
+          {'type': 'folder', 'category': '영수증빙자료', 'displayName': '매출전표(카드결제)', 'items': [
+            {'type': 'item', 'category': '영수증빙자료', 'displayName': '0월 0일 쿠팡주문'}
+          ]},
+          {'type': 'folder', 'category': '영수증빙자료', 'displayName': '이체증(계좌이체)', 'items': [
+            {'type': 'item', 'category': '영수증빙자료', 'displayName': '물품 구매'},
+          ]},
+          {'type': 'folder', 'category': '영수증빙자료', 'displayName': '거래명세표(거래내역 미비)'},
+          {'type': 'folder', 'category': '보충증빙자료', 'displayName': '참여자 명단(인스타그램 아이디 명시)'},
+          {'type': 'folder', 'category': '보충증빙자료', 'displayName': '상품수령 명단'},
+          {'type': 'folder', 'category': '기타증빙자료', 'displayName': '공지사항'},
+          {'type': 'folder', 'category': '기타증빙자료', 'displayName': '대리작성동의 증빙자료', 'items': [
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '대리작성동의 증빙자료(상품 수령 명단)'}
+          ]},
+          {'type': 'folder', 'category': '기타증빙자료', 'displayName': '사진자료', 'items': [
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '행사 진행사진'},
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '물품 구매사진'},
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '물품 사용사진'},
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '상품 구매사진'},
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '상품 수령사진'},
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '남은 물품 있는 경우 보관사진'}
+          ]},
+        ];
+      case "대여사업":
+        return [
+          {'type': 'folder', 'category': '영수증빙자료', 'displayName': '거래명세표', 'items': [
+            {'type': 'item', 'category': '영수증빙자료', 'displayName': '28포차'}
+          ]},
+          {'type': 'folder', 'category': '영수증빙자료', 'displayName': '카드전표(카드결제)'},
+          {'type': 'folder', 'category': '영수증빙자료', 'displayName': '이체증(계좌이체)'},
+          {'type': 'folder', 'category': '보충영수증빙자료', 'displayName': '공지사항'},
+          {'type': 'folder', 'category': '기타증빙자료', 'displayName': '사진자료', 'items': [
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '공동구매 구매사진'},
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '공동구매 수령사진(*품목 당 1개 이상 제출)'},
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '남은 물품 있는 경우 보관사진'}
+          ]},
+        ];
+      case "소모임 지원금 사업":
+        return [
+          {'type': 'folder', 'category': '영수증빙자료', 'displayName': '이체증'},
+          {'type': 'folder', 'category': '보충영수증빙자료', 'displayName': '공지사항'},
+          {'type': 'folder', 'category': '보충영수증빙자료', 'displayName': '수기증'},
+          {'type': 'folder', 'category': '기타증빙자료', 'displayName': '대리작성동의 증빙자료(수기증)'},
+          {'type': 'folder', 'category': '기타증빙자료', 'displayName': '당첨자선정 증빙자료'},
+        ];
+      case "축제":
+        return [
+          {'type': 'folder', 'category': '영수증빙자료', 'displayName': '매출전표', 'items': [
+            {'type': 'item', 'category': '영수증빙자료', 'displayName': '상품 구매'},
+            {'type': 'item', 'category': '영수증빙자료', 'displayName': '물품 구매'},
+            {'type': 'item', 'category': '영수증빙자료', 'displayName': '대여비(기계 렌탈비용)'},
+          ]},
+          {'type': 'folder', 'category': '영수증빙자료', 'displayName': '이체증(제2통장으로 수익 이월 시)'},
+          {'type': 'folder', 'category': '보충증빙자료', 'displayName': '상품수령 명단'},
+          {'type': 'folder', 'category': '보충증빙자료', 'displayName': '수기증'},
+
+          {'type': 'folder', 'category': '기타증빙자료', 'displayName': '공지사항', 'items': [
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '행사 공지사항'},
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '계좌 공지사항'},
+          ]},
+          {'type': 'folder', 'category': '기타증빙자료', 'displayName': '축제 증빙자료', 'items': [
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '축제 부스에 대해 논의한 자료'},
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '축제 수입금에 대한 예금거래실적증명서 및 결산안'},
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '중앙감사위원회 직인, 부스명, 예금주, 계좌번호가 포함된 계좌 공고'},
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '공고한 계좌번호를 부착한 사진자료'},
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '부스에서 판매하는 메뉴에 대한 정보가 담긴 사진자료'},
+          ]},
+          {'type': 'folder', 'category': '기타증빙자료', 'displayName': '대리작성동의 증빙자료', 'items': [
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '대리작성동의 증빙자료(수기증)'}
+          ]},
+          {'type': 'folder', 'category': '기타증빙자료', 'displayName': '사진자료', 'items': [
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '행사 진행사진'},
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '물품 구매사진'},
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '물품 사용사진'},
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '상품 구매사진'},
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '상품 수령사진'},
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '렌탈 물품사진'},
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '렌탈 물품 사용사진'},
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '남은 물품 있는 경우 보관사진'}
+          ]},
+        ];
+      case "단체행사(ex.새내기 새로배움터, MT 등)":
+        return [
+          {'type': 'folder', 'category': '영수증빙자료', 'displayName': '매출전표', 'items': [
+            {'type': 'item', 'category': '영수증빙자료', 'displayName': '상품 구매'},
+            {'type': 'item', 'category': '영수증빙자료', 'displayName': '물품 구매'},
+          ]},
+          {'type': 'folder', 'category': '영수증빙자료', 'displayName': '이체증', 'items': [
+            {'type': 'item', 'category': '영수증빙자료', 'displayName': '숙소'},
+            {'type': 'item', 'category': '영수증빙자료', 'displayName': '버스'},
+            {'type': 'item', 'category': '영수증빙자료', 'displayName': '보험'},
+            {'type': 'item', 'category': '영수증빙자료', 'displayName': '안주업체'},
+            {'type': 'item', 'category': '영수증빙자료', 'displayName': '환불'},
+            {'type': 'item', 'category': '영수증빙자료', 'displayName': '정산'},
+          ]},
+          {'type': 'folder', 'category': '영수증빙자료', 'displayName': '거래명세표', 'items': [
+            {'type': 'item', 'category': '영수증빙자료', 'displayName': '숙소'},
+            {'type': 'item', 'category': '영수증빙자료', 'displayName': '버스'},
+            {'type': 'item', 'category': '영수증빙자료', 'displayName': '보험'},
+            {'type': 'item', 'category': '영수증빙자료', 'displayName': '안주업체'},
+          ]},
+
+          {'type': 'folder', 'category': '보충증빙자료', 'displayName': '회비 납부자 명단'},
+          {'type': 'folder', 'category': '보충증빙자료', 'displayName': '참여자 명단'},
+          {'type': 'folder', 'category': '보충증빙자료', 'displayName': '보험가입자 명단'},
+          {'type': 'folder', 'category': '보충증빙자료', 'displayName': '보험가입 증서'},
+          {'type': 'folder', 'category': '보충증빙자료', 'displayName': '상품수령 명단'},
+          {'type': 'folder', 'category': '보충증빙자료', 'displayName': '수기증', 'items': [
+            {'type': 'item', 'category': '보충증빙자료', 'displayName': '환불'},
+            {'type': 'item', 'category': '보충증빙자료', 'displayName': '정산'},
+          ]},
+
+          {'type': 'folder', 'category': '기타증빙자료', 'displayName': '입금자명상이 증빙자료'},
+          {'type': 'folder', 'category': '기타증빙자료', 'displayName': '차등회비선정 증빙자료'},
+          {'type': 'folder', 'category': '기타증빙자료', 'displayName': '공지사항'},
+          {'type': 'folder', 'category': '기타증빙자료', 'displayName': '숙소선정 증빙자료'},
+          {'type': 'folder', 'category': '기타증빙자료', 'displayName': '당첨자선정 증빙자료'},
+          {'type': 'folder', 'category': '기타증빙자료', 'displayName': '대리작성동의 증빙자료', 'items': [
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '대리작성동의 증빙자료(수기증-환불)'},
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '대리작성동의 증빙자료(수기증-정산)'}
+          ]},
+          {'type': 'folder', 'category': '기타증빙자료', 'displayName': '사진자료', 'items': [
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '행사 진행사진'},
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '숙소 대여사진 (숙소/강당 별로 1개씩)'},
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '버스 대여사진 (버스 번호판이 나오도록)'},
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '물품 구매사진'},
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '물품 사용사진'},
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '상품 구매사진'},
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '상품 수령사진'},
+            {'type': 'item', 'category': '기타증빙자료', 'displayName': '남은 물품 있는 경우 보관사진'}
+          ]},
         ];
       default: // 기본
         return [];
@@ -242,55 +420,98 @@ class _HomePageState extends State<HomePage> {
   void _showAddScheduleDialog() {
     final titleController = TextEditingController();
     DateTime? pickedDate;
+    String? currentDuplicateError; // Local variable for the dialog's state
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("일정 추가"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: titleController,
-              decoration: const InputDecoration(labelText: "일정 내용"),
-            ),
-            const SizedBox(height: 10),
-            ElevatedButton(
-              onPressed: () async {
-                final selected = await showDatePicker(
-                  context: context,
-                  initialDate: _focusedDay,
-                  firstDate: DateTime(2000),
-                  lastDate: DateTime(2100),
-                );
-                if (selected != null) {
-                  pickedDate = selected;
-                }
-              },
-              child: const Text("날짜 선택"),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-            },
-            child: const Text("취소"),
-          ),
-          TextButton(
-            onPressed: () {
-              final dateToUse = pickedDate ?? _focusedDay;
-              final text = titleController.text;
-              if (text.isNotEmpty) {
-                Navigator.pop(context); // Pop the initial dialog
-                _showTemplateChoiceDialog(text, dateToUse);
-              }
-            },
-            child: const Text("다음"),
-          ),
-        ],
-      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text("일정 추가"),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: titleController,
+                    decoration: InputDecoration(
+                      labelText: "일정 내용",
+                      errorText: currentDuplicateError, // Display error here
+                    ),
+                    onChanged: (value) async {
+                      if (value.isNotEmpty) {
+                        final isDuplicate = await _checkDuplicateScheduleName(value);
+                        setState(() {
+                          if (isDuplicate) {
+                            currentDuplicateError = "'$value'은(는) 이미 등록된 일정입니다.";
+                          } else {
+                            currentDuplicateError = null;
+                          }
+                        });
+                      } else {
+                        setState(() {
+                          currentDuplicateError = null;
+                        });
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  ElevatedButton(
+                    onPressed: () async {
+                      final selected = await showDatePicker(
+                        context: context,
+                        initialDate: _focusedDay,
+                        firstDate: DateTime(2000),
+                        lastDate: DateTime(2100),
+                      );
+                      if (selected != null) {
+                        setState(() { // Update dialog's state
+                          pickedDate = selected;
+                        });
+                      }
+                    },
+                    child: Text(pickedDate == null
+                        ? "날짜 선택"
+                        : "${pickedDate!.year}년 ${pickedDate!.month}월 ${pickedDate!.day}일"),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
+                  child: const Text("취소"),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    final text = titleController.text.trim();
+                    if (text.isEmpty) {
+                      setState(() {
+                        currentDuplicateError = "일정 내용을 입력해주세요.";
+                      });
+                      return;
+                    }
+
+                    final isDuplicate = await _checkDuplicateScheduleName(text);
+                    if (isDuplicate) {
+                      setState(() {
+                        currentDuplicateError = "'$text'은(는) 이미 등록된 일정입니다.";
+                      });
+                      return;
+                    }
+
+                    final dateToUse = pickedDate ?? _focusedDay;
+                    Navigator.pop(context); // Pop the initial dialog
+                    _showTemplateChoiceDialog(text, dateToUse);
+                  },
+                  child: const Text("다음"),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
@@ -435,6 +656,18 @@ class _HomePageState extends State<HomePage> {
       return snapshot.docs.first.id;
     }
     return null;
+  }
+
+  Future<bool> _checkDuplicateScheduleName(String scheduleName) async {
+    if (scheduleName.isEmpty) return false;
+    final snapshot = await FirebaseFirestore.instance
+        .collection('audits')
+        .doc(_auditId)
+        .collection('schedules')
+        .where('text', isEqualTo: scheduleName)
+        .limit(1)
+        .get();
+    return snapshot.docs.isNotEmpty;
   }
 
   @override
