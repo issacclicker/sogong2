@@ -3,9 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:table_calendar/table_calendar.dart';
-import 'package:image_picker/image_picker.dart';
 import 'menu_detail_page.dart';
-import 'category_add_page.dart';
 
 class HomePage extends StatefulWidget {
   final String auditId;
@@ -19,8 +17,8 @@ class _HomePageState extends State<HomePage> {
   late String _auditId;
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
-  final Map<DateTime, List<Map<String, String>>> _schedules = {}; // 날짜별 텍스트 + ID
-  final List<Map<String, String>> _sidebarItems = []; // 텍스트 + ID
+  final Map<DateTime, List<String>> _schedules = {};
+  final List<String> _sidebarItems = [];
   bool _isSidebarVisible = false;
 
   @override
@@ -50,32 +48,25 @@ class _HomePageState extends State<HomePage> {
       final date = (data['date'] as Timestamp).toDate();
       final key = DateTime(date.year, date.month, date.day);
       final text = data['text'] as String;
-      final id = doc.id;
-      _schedules.putIfAbsent(key, () => []).add({"text": text, "id": id});
-      if (!_sidebarItems.any((e) => e['id'] == id)) {
-        _sidebarItems.add({"text": text, "id": id});
+      _schedules.putIfAbsent(key, () => []).add(text);
+      if (!_sidebarItems.contains(text)) {
+        _sidebarItems.add(text);
       }
     }
     setState(() {});
   }
 
   List<String> _getSchedulesForDay(DateTime day) {
-    return _schedules[DateTime(day.year, day.month, day.day)]?.map((e) => e['text']!).toList() ?? [];
+    return _schedules[DateTime(day.year, day.month, day.day)] ?? [];
   }
 
-  void _addSchedule(String text, DateTime date) async {
+  void _addSchedule(String text, DateTime date) {
     final key = DateTime(date.year, date.month, date.day);
-    final ref = await FirebaseFirestore.instance
-        .collection('audits')
-        .doc(_auditId)
-        .collection('schedules')
-        .add({'text': text, 'date': Timestamp.fromDate(date)});
-
-    final id = ref.id;
-    _schedules.putIfAbsent(key, () => []).add({"text": text, "id": id});
-    if (!_sidebarItems.any((e) => e['id'] == id)) {
-      _sidebarItems.add({"text": text, "id": id});
+    _schedules.putIfAbsent(key, () => []).add(text);
+    if (!_sidebarItems.contains(text)) {
+      _sidebarItems.add(text);
     }
+    saveSchedule(text, date);
     setState(() {});
   }
 
@@ -138,6 +129,21 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Future<String?> _getScheduleIdByText(String text) async {
+    final snapshot = await FirebaseFirestore.instance
+        .collection('audits')
+        .doc(_auditId)
+        .collection('schedules')
+        .where('text', isEqualTo: text)
+        .limit(1)
+        .get();
+
+    if (snapshot.docs.isNotEmpty) {
+      return snapshot.docs.first.id;
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final Map<String, List<String>> groupedSidebarItems = {
@@ -145,11 +151,11 @@ class _HomePageState extends State<HomePage> {
     };
 
     for (var item in _sidebarItems) {
-      final parts = item['text']!.split(" > ");
+      final parts = item.split(" > ");
       if (parts.length == 2) {
         groupedSidebarItems.putIfAbsent(parts[0], () => []).add(parts[1]);
       } else {
-        groupedSidebarItems['일정 목록']!.add(item['text']!);
+        groupedSidebarItems['일정 목록']!.add(item);
       }
     }
 
@@ -188,30 +194,20 @@ class _HomePageState extends State<HomePage> {
                       children: groupedSidebarItems.entries.expand((entry) {
                         if (entry.key == '일정 목록') {
                           return entry.value.map((sub) {
-                            final item = _sidebarItems.firstWhere((e) => e['text'] == sub);
                             return ListTile(
                               title: Text(sub),
                               onTap: () async {
-                                final result = await Navigator.push<Map<String, List<String>>>(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => MenuDetailSidebarPage(
-                                      auditId: _auditId,
-                                      scheduleId: item['id']!,
+                                final selectedScheduleId = await _getScheduleIdByText(sub);
+                                if (selectedScheduleId != null) {
+                                  await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => MenuDetailSidebarPage(
+                                        auditId: _auditId,
+                                        scheduleId: selectedScheduleId,
+                                      ),
                                     ),
-                                  ),
-                                );
-
-                                if (result != null) {
-                                  result.forEach((category, subs) {
-                                    for (var s in subs) {
-                                      final text = "$category > $s";
-                                      if (!_sidebarItems.any((e) => e['text'] == text)) {
-                                        _sidebarItems.add({"text": text, "id": item['id']!});
-                                      }
-                                    }
-                                  });
-                                  setState(() {});
+                                  );
                                 }
                               },
                             );

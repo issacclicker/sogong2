@@ -1,4 +1,3 @@
-// menu_detail_page.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -145,7 +144,11 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
           Expanded(
             child: _selectedSubcategory == null
                 ? const Center(child: Text("세부분류를 선택해주세요"))
-                : GalleryUploadPage(template: '$_selectedCategory > $_selectedSubcategory'),
+                : GalleryUploadPage(
+              auditId: widget.auditId,
+              scheduleId: widget.scheduleId,
+              template: '$_selectedCategory > $_selectedSubcategory',
+            ),
           ),
         ],
       ),

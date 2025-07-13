@@ -6,8 +6,16 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class GalleryUploadPage extends StatefulWidget {
-  final String template; // ex: "영수증 > 카드전표"
-  const GalleryUploadPage({super.key, required this.template});
+  final String auditId;
+  final String scheduleId;
+  final String template;
+
+  const GalleryUploadPage({
+    super.key,
+    required this.auditId,
+    required this.scheduleId,
+    required this.template,
+  });
 
   @override
   State<GalleryUploadPage> createState() => _GalleryUploadPageState();
@@ -21,7 +29,7 @@ class _GalleryUploadPageState extends State<GalleryUploadPage> {
   @override
   void initState() {
     super.initState();
-    _loadImageFromFirestore(); // ✅ Firestore에서 사진 불러오기
+    _loadImageFromFirestore();
   }
 
   Future<void> _loadImageFromFirestore() async {
@@ -31,6 +39,10 @@ class _GalleryUploadPageState extends State<GalleryUploadPage> {
     final snapshot = await FirebaseFirestore.instance
         .collection('users')
         .doc(user.uid)
+        .collection('audits')
+        .doc(widget.auditId)
+        .collection('schedules')
+        .doc(widget.scheduleId)
         .collection('uploadedImages')
         .where('template', isEqualTo: widget.template)
         .orderBy('uploadedAt', descending: true)
@@ -58,15 +70,18 @@ class _GalleryUploadPageState extends State<GalleryUploadPage> {
 
     final ref = FirebaseStorage.instance
         .ref()
-        .child('uploads/${user.uid}/${DateTime.now().millisecondsSinceEpoch}.jpg');
+        .child('uploads/${user.uid}/${widget.auditId}/${widget.scheduleId}/${DateTime.now().millisecondsSinceEpoch}.jpg');
 
     await ref.putFile(File(image.path));
     final downloadUrl = await ref.getDownloadURL();
 
-    // ✅ Firestore에 업로드 정보 저장
     await FirebaseFirestore.instance
         .collection('users')
         .doc(user.uid)
+        .collection('audits')
+        .doc(widget.auditId)
+        .collection('schedules')
+        .doc(widget.scheduleId)
         .collection('uploadedImages')
         .add({
       'template': widget.template,
