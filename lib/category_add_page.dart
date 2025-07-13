@@ -86,6 +86,13 @@ class _CategoryAddPageState extends State<CategoryAddPage> {
 
   String _selectedCategory = '영수증빙자료';
   String _selectedSubcategory = '매출 전표(오프라인 카드결제)';
+  final TextEditingController _customNameController = TextEditingController(); // 추가됨
+
+  @override
+  void dispose() {
+    _customNameController.dispose(); // 추가됨
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -168,6 +175,16 @@ class _CategoryAddPageState extends State<CategoryAddPage> {
                 ),
               ],
             ),
+            const SizedBox(height: 30), // 추가됨: 간격
+
+            // 4) 사용자 지정 이름 입력 필드 // 추가됨
+            const Text('카테고리 표시 이름 (선택 사항)'), // 추가됨
+            TextField( // 추가됨
+              controller: _customNameController,
+              decoration: const InputDecoration(
+                hintText: '예: 점심 식대 (교직원 식당)',
+              ),
+            ),
 
             const Spacer(),
 
@@ -175,11 +192,17 @@ class _CategoryAddPageState extends State<CategoryAddPage> {
             Center(
               child: ElevatedButton(
                 onPressed: () {
+                  // 변경됨: 사용자 지정 이름 사용 로직 추가
+                  final String displayName = _customNameController.text.isNotEmpty
+                      ? _customNameController.text
+                      : _selectedSubcategory;
+
                   Navigator.pop<Map<String, String>>(
                     context,
                     {
                       'category': _selectedCategory,
-                      'subcategory': _selectedSubcategory,
+                      'subcategory': _selectedSubcategory, // 원래 소분류 이름
+                      'displayName': displayName,        // 표시될 이름 (사용자 지정 또는 소분류)
                     },
                   );
                 },
