@@ -4,16 +4,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'AuditListPage.dart';
 import 'login_page.dart';
 import 'signup_page.dart';
+import 'firebase_options.dart'; // firebase_options.dart 임포트
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
-    options: FirebaseOptions(
-      apiKey: "AIzaSyBMAA8FQWDKJUPQOtS3-2SQuJGEZ4Emt-0",
-      appId: "1:701252937477:android:5ec4cd697b51af9c0f396c",
-      messagingSenderId: "701252937477",
-      projectId: "sogongtest-c066f",
-    )
+    options: DefaultFirebaseOptions.currentPlatform, // DefaultFirebaseOptions 사용
   );
   runApp(const MyApp());
 }

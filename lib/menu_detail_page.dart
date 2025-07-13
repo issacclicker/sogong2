@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'category_add_page.dart';
 import 'gallery_upload_page.dart';
 
@@ -19,7 +20,6 @@ class MenuDetailSidebarPage extends StatefulWidget {
 }
 
 class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
-  // 데이터 구조를 미리 초기화하여 항상 키가 존재하도록 보장
   final Map<String, List<Map<String, dynamic>>> _categoryData = {
     '영수증빙자료': [],
     '보충영수증빙자료': [],
@@ -27,6 +27,7 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
   };
   Map<String, dynamic>? _selectedItemInfo;
   bool _isLoading = true;
+  bool _isSendingEmail = false;
 
   @override
   void initState() {
@@ -34,11 +35,9 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
     _loadDataFromFirestore();
   }
 
-  // Firestore에서 데이터를 불러오는 로직 수정
   Future<void> _loadDataFromFirestore() async {
     setState(() {
       _isLoading = true;
-      // 각 카테고리의 리스트만 비움
       _categoryData.forEach((_, list) => list.clear());
     });
 
@@ -98,7 +97,6 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
     setState(() => _isLoading = false);
   }
 
-  // 폴더 추가 다이얼로그 (변경 없음)
   Future<void> _showAddFolderDialog(String category) async {
     final folderNameController = TextEditingController();
     final user = FirebaseAuth.instance.currentUser;
@@ -149,7 +147,6 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
     }
   }
 
-  // 항목 추가 로직 (변경 없음)
   Future<void> _navigateAndAddItem(String category, {String? parentFolderId}) async {
     final result = await Navigator.push<Map<String, String>>(
       context,
@@ -182,42 +179,128 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
     }
   }
 
+  Future<void> _showSendEmailDialog() async {
+    final emailController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    return showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('이메일 발송'),
+          content: Form(
+            key: formKey,
+            child: TextFormField(
+              controller: emailController,
+              decoration: const InputDecoration(hintText: "받는 사람 이메일 주소"),
+              validator: (value) {
+                if (value == null || value.isEmpty || !value.contains('@')) {
+                  return '유효한 이메일 주소를 입력하세요.';
+                }
+                return null;
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('취소'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (formKey.currentState!.validate()) {
+                  Navigator.pop(context);
+                  _triggerSendEmail(emailController.text);
+                }
+              },
+              child: const Text('발송'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _triggerSendEmail(String recipientEmail) async {
+    setState(() {
+      _isSendingEmail = true;
+    });
+
+    try {
+      final HttpsCallable callable = FirebaseFunctions.instance.httpsCallable('sendEmailWithImages');
+      final response = await callable.call(<String, dynamic>{
+        'auditId': widget.auditId,
+        'scheduleId': widget.scheduleId,
+        'recipientEmail': recipientEmail,
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(response.data['message'] ?? '이메일이 발송되었습니다.')),
+      );
+    } on FirebaseFunctionsException catch (e) {
+      print('Cloud Function Error: ${e.code} - ${e.message}');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('이메일 발송 실패: ${e.message}')),
+      );
+    } catch (e) {
+      print('Generic Error: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('알 수 없는 오류로 이메일 발송에 실패했습니다.')),
+      );
+    }
+
+    setState(() {
+      _isSendingEmail = false;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("항목 추가 및 이미지 업로드")),
+      appBar: AppBar(
+        title: const Text("항목 추가 및 이미지 업로드"),
+        actions: [
+          if (_isSendingEmail)
+            const Padding(
+              padding: EdgeInsets.only(right: 16.0),
+              child: Center(child: CircularProgressIndicator(color: Colors.white)),
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.email),
+              onPressed: _showSendEmailDialog,
+            ),
+        ],
+      ),
       body: Row(
         children: [
-          // Left Sidebar
           Container(
             width: 250,
             color: Colors.grey[200],
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : ListView(
-                    children: _buildCategoryList(),
-                  ),
+              children: _buildCategoryList(),
+            ),
           ),
           const VerticalDivider(width: 1),
-          // Right Content Area
           Expanded(
             child: _selectedItemInfo == null
                 ? const Center(child: Text("항목을 선택해주세요"))
                 : GalleryUploadPage(
-                    auditId: widget.auditId,
-                    scheduleId: widget.scheduleId,
-                    itemId: _selectedItemInfo!['id'],
-                    itemDisplayName: _selectedItemInfo!['displayName'],
-                  ),
+              key: ValueKey(_selectedItemInfo!['id']), // Add key to force widget rebuild
+              auditId: widget.auditId,
+              scheduleId: widget.scheduleId,
+              itemId: _selectedItemInfo!['id'],
+              itemDisplayName: _selectedItemInfo!['displayName'],
+            ),
           ),
         ],
       ),
     );
   }
 
-  // 카테고리 리스트 UI 생성 로직 수정
   List<Widget> _buildCategoryList() {
-    // 이제 _categoryData.entries를 직접 사용하여 순서대로 UI를 생성
     return _categoryData.entries.map((entry) {
       final categoryName = entry.key;
       final items = entry.value;
@@ -239,7 +322,6 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
     }).toList();
   }
 
-  // 개별 항목/폴더 위젯 (변경 없음)
   Widget _buildItemWidget(Map<String, dynamic> item, String categoryName) {
     bool isFolder = item['type'] == 'folder';
 

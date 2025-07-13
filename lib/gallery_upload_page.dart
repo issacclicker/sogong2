@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb; // kIsWeb 임포트
 
 class GalleryUploadPage extends StatefulWidget {
   final String auditId;
@@ -101,10 +102,18 @@ class _GalleryUploadPageState extends State<GalleryUploadPage> {
       // 1. Firebase Storage에 이미지 업로드
       final storageRef = FirebaseStorage.instance.ref().child(
           'uploads/${user.uid}/${widget.auditId}/${widget.scheduleId}/${widget.itemId}.jpg');
-      await storageRef.putFile(File(image.path));
+
+      if (kIsWeb) {
+        // 웹 환경에서는 putData 사용
+        final imageData = await image.readAsBytes();
+        await storageRef.putData(imageData);
+      } else {
+        // 모바일/데스크톱 환경에서는 putFile 사용
+        await storageRef.putFile(File(image.path));
+      }
       final downloadUrl = await storageRef.getDownloadURL();
 
-      // 2. Firestore 문서에 이미지 URL 업데이트
+      // 2. Firestore 문서에 이미지 URL 업데이트 (set with merge: true 사용)
       await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
@@ -114,20 +123,33 @@ class _GalleryUploadPageState extends State<GalleryUploadPage> {
           .doc(widget.scheduleId)
           .collection('categories')
           .doc(widget.itemId)
-          .update({
-        'imageUrl': downloadUrl,
-        'uploadedAt': Timestamp.now(),
-      });
+          .set(
+        {
+          'imageUrl': downloadUrl,
+          'uploadedAt': Timestamp.now(),
+        },
+        SetOptions(merge: true), // 문서가 없으면 생성, 있으면 병합
+      );
 
       setState(() {
         _imageUrl = downloadUrl;
+        _pickedImage = null; // 업로드 성공 후 선택된 이미지 초기화
       });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('사진이 성공적으로 업로드되었습니다.')),
+        );
+      }
     } catch (e) {
-      // 에러 처리
       print("Error uploading image: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('사진 업로드 실패: $e')),
+        );
+      }
+    } finally {
+      setState(() => _isLoading = false);
     }
-
-    setState(() => _isLoading = false);
   }
 
   @override
@@ -136,7 +158,12 @@ class _GalleryUploadPageState extends State<GalleryUploadPage> {
     if (_isLoading) {
       imageWidget = const CircularProgressIndicator();
     } else if (_pickedImage != null) {
-      imageWidget = Image.file(File(_pickedImage!.path), width: 300, fit: BoxFit.contain);
+      // 웹 환경에서는 Image.network 사용, 그 외에는 Image.file 사용
+      if (kIsWeb) {
+        imageWidget = Image.network(_pickedImage!.path, width: 300, fit: BoxFit.contain);
+      } else {
+        imageWidget = Image.file(File(_pickedImage!.path), width: 300, fit: BoxFit.contain);
+      }
     } else if (_imageUrl != null) {
       imageWidget = Image.network(_imageUrl!, width: 300, fit: BoxFit.contain);
     } else {
