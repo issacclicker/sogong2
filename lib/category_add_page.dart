@@ -2,7 +2,10 @@
 import 'package:flutter/material.dart';
 
 class CategoryAddPage extends StatefulWidget {
-  const CategoryAddPage({Key? key}) : super(key: key);
+  final String? initialCategory;
+  final bool isForFolder;
+
+  const CategoryAddPage({Key? key, this.initialCategory, this.isForFolder = false}) : super(key: key);
 
   @override
   State<CategoryAddPage> createState() => _CategoryAddPageState();
@@ -14,6 +17,18 @@ class _CategoryAddPageState extends State<CategoryAddPage> {
     '보충영수증빙자료',
     '기타증빙자료',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialCategory != null) {
+      _selectedCategory = widget.initialCategory!;
+      // Ensure subcategory is set for the initial category
+      if (_defaultOptions.containsKey(_selectedCategory) && _defaultOptions[_selectedCategory]!.isNotEmpty) {
+        _selectedSubcategory = _defaultOptions[_selectedCategory]!.first;
+      }
+    }
+  }
 
   final Map<String, List<String>> _defaultOptions = {
     '영수증빙자료': [
@@ -115,7 +130,7 @@ class _CategoryAddPageState extends State<CategoryAddPage> {
                 child: Text(cat),
               ))
                   .toList(),
-              onChanged: (v) {
+              onChanged: widget.isForFolder ? null : (v) {
                 if (v == null) return;
                 setState(() {
                   _selectedCategory = v;
@@ -125,7 +140,6 @@ class _CategoryAddPageState extends State<CategoryAddPage> {
             ),
             const SizedBox(height: 20),
 
-            // 2) 소분류 선택 드롭다운
             const Text('세부 분류'),
             DropdownButton<String>(
               value: _selectedSubcategory,
@@ -144,42 +158,44 @@ class _CategoryAddPageState extends State<CategoryAddPage> {
             ),
             const SizedBox(height: 30),
 
-            // 3) 힌트 영역
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 대분류 힌트 (영수증빙자료일 때 커스텀 텍스트)
-                Row(
-                  children: [
-                    Icon(Icons.help_outline, size: 20),
-                    const SizedBox(width: 4),
-                    Text('이렇게 어떻게 해요?',),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                // 추가 힌트: 배달
-                Text('배달 : 영수증에 배달팁 명시 필수!'),
-                const SizedBox(height: 10),
-                // 추가 힌트: 결제취소
-                Text('결제취소 : 취소시 발급되는 영수증 필수!'),
-                const SizedBox(height: 20),
-                // 세부 분류 힌트
-                Row(
-                  children: [
-                    const Icon(Icons.info_outline, size: 20),
-                    const SizedBox(width: 4),
-                    Flexible(
-                      child:Text(_tipMap[_selectedSubcategory] ?? ''),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 30), // 추가됨: 간격
+            // 3) 힌트 영역 (폴더 추가 시 숨김)
+            if (!widget.isForFolder) ...[
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 대분류 힌트 (영수증빙자료일 때 커스텀 텍스트)
+                  Row(
+                    children: [
+                      Icon(Icons.help_outline, size: 20),
+                      const SizedBox(width: 4),
+                      Text('이렇게 어떻게 해요?'),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  // 추가 힌트: 배달
+                  Text('배달 : 영수증에 배달팁 명시 필수!'),
+                  const SizedBox(height: 10),
+                  // 추가 힌트: 결제취소
+                  Text('결제취소 : 취소시 발급되는 영수증 필수!'),
+                  const SizedBox(height: 20),
+                  // 세부 분류 힌트
+                  Row(
+                    children: [
+                      const Icon(Icons.info_outline, size: 20),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child:Text(_tipMap[_selectedSubcategory] ?? ''),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 30), // 추가됨: 간격
+            ],
 
-            // 4) 사용자 지정 이름 입력 필드 // 추가됨
-            const Text('카테고리 표시 이름 (선택 사항)'), // 추가됨
-            TextField( // 추가됨
+            // 4) 사용자 지정 이름 입력 필드
+            const Text('카테고리 표시 이름 (선택 사항)'),
+            TextField(
               controller: _customNameController,
               decoration: const InputDecoration(
                 hintText: '예: 점심 식대 (교직원 식당)',
@@ -192,7 +208,6 @@ class _CategoryAddPageState extends State<CategoryAddPage> {
             Center(
               child: ElevatedButton(
                 onPressed: () {
-                  // 변경됨: 사용자 지정 이름 사용 로직 추가
                   final String displayName = _customNameController.text.isNotEmpty
                       ? _customNameController.text
                       : _selectedSubcategory;
@@ -201,8 +216,8 @@ class _CategoryAddPageState extends State<CategoryAddPage> {
                     context,
                     {
                       'category': _selectedCategory,
-                      'subcategory': _selectedSubcategory, // 원래 소분류 이름
-                      'displayName': displayName,        // 표시될 이름 (사용자 지정 또는 소분류)
+                      'subcategory': widget.isForFolder ? '' : _selectedSubcategory, // 폴더 추가 시 소분류는 빈 문자열
+                      'displayName': displayName,
                     },
                   );
                 },
