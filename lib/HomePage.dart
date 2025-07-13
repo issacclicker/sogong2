@@ -4,12 +4,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:image_picker/image_picker.dart';
-import 'menu_detail_page.dart'; // ✅ 상대 경로로!
-
-
-
-import 'category_add_page.dart';
 import 'menu_detail_page.dart';
+import 'category_add_page.dart';
 
 class HomePage extends StatefulWidget {
   final String auditId;
@@ -23,8 +19,8 @@ class _HomePageState extends State<HomePage> {
   late String _auditId;
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
-  final Map<DateTime, List<String>> _schedules = {};
-  final List<String> _sidebarItems = [];
+  final Map<DateTime, List<Map<String, String>>> _schedules = {}; // 날짜별 텍스트 + ID
+  final List<Map<String, String>> _sidebarItems = []; // 텍스트 + ID
   bool _isSidebarVisible = false;
 
   @override
@@ -54,25 +50,32 @@ class _HomePageState extends State<HomePage> {
       final date = (data['date'] as Timestamp).toDate();
       final key = DateTime(date.year, date.month, date.day);
       final text = data['text'] as String;
-      _schedules.putIfAbsent(key, () => []).add(text);
-      if (!_sidebarItems.contains(text)) {
-        _sidebarItems.add(text);
+      final id = doc.id;
+      _schedules.putIfAbsent(key, () => []).add({"text": text, "id": id});
+      if (!_sidebarItems.any((e) => e['id'] == id)) {
+        _sidebarItems.add({"text": text, "id": id});
       }
     }
     setState(() {});
   }
 
   List<String> _getSchedulesForDay(DateTime day) {
-    return _schedules[DateTime(day.year, day.month, day.day)] ?? [];
+    return _schedules[DateTime(day.year, day.month, day.day)]?.map((e) => e['text']!).toList() ?? [];
   }
 
-  void _addSchedule(String text, DateTime date) {
+  void _addSchedule(String text, DateTime date) async {
     final key = DateTime(date.year, date.month, date.day);
-    _schedules.putIfAbsent(key, () => []).add(text);
-    if (!_sidebarItems.contains(text)) {
-      _sidebarItems.add(text);
+    final ref = await FirebaseFirestore.instance
+        .collection('audits')
+        .doc(_auditId)
+        .collection('schedules')
+        .add({'text': text, 'date': Timestamp.fromDate(date)});
+
+    final id = ref.id;
+    _schedules.putIfAbsent(key, () => []).add({"text": text, "id": id});
+    if (!_sidebarItems.any((e) => e['id'] == id)) {
+      _sidebarItems.add({"text": text, "id": id});
     }
-    saveSchedule(text, date);
     setState(() {});
   }
 
@@ -137,17 +140,16 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ 대분류/소분류 그룹 + 일정 그룹 나누기
     final Map<String, List<String>> groupedSidebarItems = {
       '일정 목록': [],
     };
 
     for (var item in _sidebarItems) {
-      final parts = item.split(" > ");
+      final parts = item['text']!.split(" > ");
       if (parts.length == 2) {
         groupedSidebarItems.putIfAbsent(parts[0], () => []).add(parts[1]);
       } else {
-        groupedSidebarItems['일정 목록']!.add(item);
+        groupedSidebarItems['일정 목록']!.add(item['text']!);
       }
     }
 
@@ -185,17 +187,18 @@ class _HomePageState extends State<HomePage> {
                     child: ListView(
                       children: groupedSidebarItems.entries.expand((entry) {
                         if (entry.key == '일정 목록') {
-                          // ✅ 일정 목록은 항상 펼쳐져 있는 상태로 표시
                           return entry.value.map((sub) {
+                            final item = _sidebarItems.firstWhere((e) => e['text'] == sub);
                             return ListTile(
                               title: Text(sub),
                               onTap: () async {
                                 final result = await Navigator.push<Map<String, List<String>>>(
                                   context,
                                   MaterialPageRoute(
-                                    // ✅ 아래처럼 수정
-                                    builder: (_) => MenuDetailSidebarPage(),
-
+                                    builder: (_) => MenuDetailSidebarPage(
+                                      auditId: _auditId,
+                                      scheduleId: item['id']!,
+                                    ),
                                   ),
                                 );
 
@@ -203,8 +206,8 @@ class _HomePageState extends State<HomePage> {
                                   result.forEach((category, subs) {
                                     for (var s in subs) {
                                       final text = "$category > $s";
-                                      if (!_sidebarItems.contains(text)) {
-                                        _sidebarItems.add(text);
+                                      if (!_sidebarItems.any((e) => e['text'] == text)) {
+                                        _sidebarItems.add({"text": text, "id": item['id']!});
                                       }
                                     }
                                   });
@@ -214,7 +217,6 @@ class _HomePageState extends State<HomePage> {
                             );
                           }).toList();
                         } else {
-                          // ✅ 나머지 대분류 항목은 접을 수 있도록 유지
                           return [
                             ExpansionTile(
                               title: Text(entry.key),

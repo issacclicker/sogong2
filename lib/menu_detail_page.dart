@@ -1,3 +1,4 @@
+// menu_detail_page.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -5,7 +6,14 @@ import 'category_add_page.dart';
 import 'gallery_upload_page.dart';
 
 class MenuDetailSidebarPage extends StatefulWidget {
-  const MenuDetailSidebarPage({super.key});
+  final String auditId;
+  final String scheduleId;
+
+  const MenuDetailSidebarPage({
+    super.key,
+    required this.auditId,
+    required this.scheduleId,
+  });
 
   @override
   State<MenuDetailSidebarPage> createState() => _MenuDetailSidebarPageState();
@@ -19,7 +27,7 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
   @override
   void initState() {
     super.initState();
-    _loadCategoriesFromFirestore(); // ✅ Firestore에서 항목 불러오기
+    _loadCategoriesFromFirestore();
   }
 
   Future<void> _loadCategoriesFromFirestore() async {
@@ -29,6 +37,10 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
     final snapshot = await FirebaseFirestore.instance
         .collection('users')
         .doc(user.uid)
+        .collection('audits')
+        .doc(widget.auditId)
+        .collection('schedules')
+        .doc(widget.scheduleId)
         .collection('categories')
         .orderBy('createdAt')
         .get();
@@ -46,7 +58,7 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
     setState(() {});
   }
 
-  void _addItem(String category, String subcategory) async {
+  Future<void> _addItem(String category, String subcategory) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
@@ -59,10 +71,13 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
       _selectedSubcategory = subcategory;
     });
 
-    // ✅ Firestore에 저장
     await FirebaseFirestore.instance
         .collection('users')
         .doc(user.uid)
+        .collection('audits')
+        .doc(widget.auditId)
+        .collection('schedules')
+        .doc(widget.scheduleId)
         .collection('categories')
         .add({
       'category': category,
@@ -80,7 +95,7 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
     if (result != null) {
       final category = result['category']!;
       final subcategory = result['subcategory']!;
-      _addItem(category, subcategory);
+      await _addItem(category, subcategory);
     }
   }
 

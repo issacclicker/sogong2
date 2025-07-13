@@ -72,13 +72,21 @@ class AuditListPage extends StatelessWidget {
             .orderBy('createdAt', descending: true)
             .snapshots(),
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+          if (snapshot.hasError) {
+            return Center(child: Text('에러 발생: ${snapshot.error}'));
+          }
+
+          // 연결 중이거나 데이터 없을 때만 로딩 표시
+          if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
+
           final docs = snapshot.data?.docs ?? [];
+
           if (docs.isEmpty) {
             return const Center(child: Text('등록된 감사가 없습니다.'));
           }
+
           return ListView.builder(
             itemCount: docs.length,
             itemBuilder: (context, index) {
@@ -90,7 +98,9 @@ class AuditListPage extends StatelessWidget {
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => HomePage(auditId: auditId)),
+                    MaterialPageRoute(
+                      builder: (_) => HomePage(auditId: auditId),
+                    ),
                   );
                 },
               );
