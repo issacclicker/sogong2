@@ -4,7 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart' show kIsWeb; // kIsWeb 임포트
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class GalleryUploadPage extends StatefulWidget {
   final String auditId;
@@ -29,6 +29,17 @@ class _GalleryUploadPageState extends State<GalleryUploadPage> {
   final ImagePicker _picker = ImagePicker();
   String? _imageUrl;
   bool _isLoading = true;
+
+  // SnackBar를 표시하는 헬퍼 함수
+  void _showSnackBar(String message, {bool isError = false}) {
+    if (!mounted) return; // 위젯이 화면에 없으면 스낵바를 표시하지 않음
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.redAccent : Colors.black87,
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -91,6 +102,7 @@ class _GalleryUploadPageState extends State<GalleryUploadPage> {
 
     setState(() {
       _pickedImage = image;
+      _isLoading = true;
     });
 
     final user = FirebaseAuth.instance.currentUser;
