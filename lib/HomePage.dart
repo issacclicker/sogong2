@@ -1323,6 +1323,7 @@ class _HomePageState extends State<HomePage> {
                   headerStyle: const HeaderStyle(
                     formatButtonVisible: false,
                   ),
+                  daysOfWeekHeight: 40.0,
                   calendarBuilders: CalendarBuilders(
                     markerBuilder: (ctx, day, events) {
                       final ev = _getSchedulesForDay(day);
