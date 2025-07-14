@@ -7,6 +7,7 @@ import 'package:archive/archive_io.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:typed_data';
+import 'package:path/path.dart' as path; // Add this line
 
 import 'package:sogong/download_utils.dart';
 import 'category_add_page.dart';
@@ -324,37 +325,111 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
             'parentFolderId': parentFolderId,
             'createdAt': Timestamp.now(),
             'orderIndex': Timestamp.now().millisecondsSinceEpoch,
+            'isChecked': false, // Add this line
           });
       _loadDataFromFirestore();
     }
   }
 
   Future<void> _showDownloadZipDialog() async {
-    return showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('사진 압축 파일 다운로드'),
-          content: const Text('모든 사진을 압축하여 다운로드하시겠습니까?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('취소'),
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('로그인이 필요합니다.')),
+      );
+      return;
+    }
+
+    String scheduleDisplayName = '알 수 없는 일정'; // 기본값
+    final scheduleDoc = await FirebaseFirestore.instance
+        .collection('audits')
+        .doc(widget.auditId)
+        .collection('schedules')
+        .doc(widget.scheduleId)
+        .get();
+    if (scheduleDoc.exists) {
+      scheduleDisplayName = scheduleDoc.data()!['text'] ?? '알 수 없는 일정';
+    }
+
+    final defaultZipFileNameWithoutExtension = '${scheduleDisplayName} 감사 자료';
+
+    // 체크되지 않은 항목 찾기
+    List<String> uncheckedItems = [];
+    _categoryData.forEach((categoryName, items) {
+      for (var item in items) {
+        if (item['type'] == 'item' && !(item['isChecked'] ?? false)) {
+          uncheckedItems.add(item['displayName']);
+        } else if (item['type'] == 'folder' && item.containsKey('items')) {
+          for (var childItem in item['items']) {
+            if (!(childItem['isChecked'] ?? false)) {
+              uncheckedItems.add(childItem['displayName']);
+            }
+          }
+        }
+      }
+    });
+
+    if (uncheckedItems.isNotEmpty) {
+      // 체크되지 않은 항목이 있을 경우 경고 대화 상자 표시
+      return showDialog(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text('미완료 항목 경고'),
+            content: SingleChildScrollView(
+              child: ListBody(
+                children: <Widget>[
+                  const Text('다음 항목들이 체크되지 않았습니다. 다운로드를 진행하시겠습니까?'),
+                  const SizedBox(height: 10),
+                  ...uncheckedItems.map((item) => Text('- $item')),
+                ],
+              ),
             ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _triggerDownloadZip();
-              },
-              child: const Text('다운로드'),
-            ),
-          ],
-        );
-      },
-    );
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false), // '아니오' 선택
+                child: const Text('아니오'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true), // '예' 선택
+                child: const Text('예'),
+              ),
+            ],
+          );
+        },
+      ).then((proceed) {
+        if (proceed == true) {
+          _triggerDownloadZip(defaultZipFileNameWithoutExtension);
+        }
+      });
+    } else {
+      // 체크되지 않은 항목이 없을 경우 바로 다운로드 진행
+      return showDialog(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text('사진 압축 파일 다운로드'),
+            content: const Text('모든 사진을 압축하여 다운로드하시겠습니까?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('취소'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _triggerDownloadZip(defaultZipFileNameWithoutExtension);
+                },
+                child: const Text('다운로드'),
+              ),
+            ],
+          );
+        },
+      );
+    }
   }
 
-  Future<void> _triggerDownloadZip() async {
+  Future<void> _triggerDownloadZip(String customFileName) async {
     setState(() {
       _isSendingEmail = true; // 로딩 상태를 재활용
     });
@@ -368,7 +443,23 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
         return;
       }
 
-      // 1. 모든 이미지 URL 가져오기
+      // 1. 일정 이름 가져오기
+      // scheduleDisplayName은 _showDownloadZipDialog에서 이미 가져와 customFileName으로 전달됨
+      // 이 부분은 제거하거나 주석 처리합니다.
+      // String scheduleDisplayName = '알 수 없는 일정'; // 기본값
+      // final scheduleDoc = await FirebaseFirestore.instance
+      //     .collection('users')
+      //     .doc(user.uid)
+      //     .collection('audits')
+      //     .doc(widget.auditId)
+      //     .collection('schedules')
+      //     .doc(widget.scheduleId)
+      //     .get();
+      // if (scheduleDoc.exists && scheduleDoc.data()!.containsKey('displayName')) {
+      //   scheduleDisplayName = scheduleDoc.data()!['displayName'];
+      // }
+
+      // 2. 모든 이미지 URL과 해당 항목 정보 가져오기
       print('Fetching categories for auditId: ${widget.auditId}, scheduleId: ${widget.scheduleId}');
       final QuerySnapshot categorySnapshot = await FirebaseFirestore.instance
           .collection('users')
@@ -382,50 +473,106 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
 
       print('Found ${categorySnapshot.docs.length} documents in categories collection.');
 
-      final List<String> imageUrls = [];
+      final List<Map<String, dynamic>> allImageDetails = []; // 이미지 URL과 항목 정보를 함께 저장
       for (var doc in categorySnapshot.docs) {
         final data = doc.data();
         if (data != null) {
           final Map<String, dynamic> itemData = data as Map<String, dynamic>;
-          if (itemData.containsKey('imageUrl') && itemData['imageUrl'] != null) {
-            imageUrls.add(itemData['imageUrl'] as String);
-            print('Found imageUrl: ${itemData['imageUrl']} for item: ${doc.id}');
-          } else {
-            print('Document ${doc.id} does not contain imageUrl or it is null.');
+          final String itemId = doc.id;
+          final String itemDisplayName = itemData['displayName'] ?? '알 수 없는 항목';
+
+          List<String> currentItemImageUrls = [];
+          if (itemData.containsKey('imageUrls') && itemData['imageUrls'] != null) {
+            currentItemImageUrls.addAll(List<String>.from(itemData['imageUrls']));
+          } else if (itemData.containsKey('imageUrl') && itemData['imageUrl'] != null) { // Backward compatibility
+            currentItemImageUrls.add(itemData['imageUrl'] as String);
+          }
+
+          for (String imageUrl in currentItemImageUrls) {
+            allImageDetails.add({
+              'url': imageUrl,
+              'itemId': itemId,
+              'itemDisplayName': itemDisplayName,
+            });
           }
         } else {
           print('Document ${doc.id} has no data.');
         }
       }
 
-      if (imageUrls.isEmpty) {
+      if (allImageDetails.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('다운로드할 이미지가 없습니다.')),
         );
         print('No image URLs found.');
         return;
       } else {
-        print('Total image URLs to download: ${imageUrls.length}');
+        print('Total image URLs to download: ${allImageDetails.length}');
       }
 
-      // 2. 이미지 다운로드 및 압축
+      // 3. 이미지 다운로드 및 압축
       final archive = Archive();
       int imageCount = 0;
 
-      for (final imageUrl in imageUrls) {
+      for (final imageDetail in allImageDetails) {
+        final String imageUrl = imageDetail['url'];
+        final String itemDisplayName = imageDetail['itemDisplayName'];
+
         try {
           print('Attempting to download image from: $imageUrl');
           final parsedUri = Uri.parse(imageUrl); // 파싱된 URI 출력
           print('Parsed URI: $parsedUri');
 
           final response = await http.get(parsedUri); // 변경된 부분: parsedUri 사용
-          if (response.statusCode == 200) {
-            final fileName = imageUrl.split('/').last.split('?').first; // URL에서 파일 이름 추출
-            archive.addFile(ArchiveFile(fileName, response.bodyBytes.length, response.bodyBytes));
+          final contentType = response.headers['content-type'];
+          print('Downloaded image from $imageUrl, Content-Type: $contentType'); // Added print statement
+          if (response.statusCode == 200 && contentType != null && (contentType.startsWith('image/') || contentType == 'application/octet-stream')) {
+            String originalFileNameWithQuery = imageUrl.split('/').last; // e.g., 1752509092842_08c3f151-972d-4385-ba4b-cb401f1ac49c?alt=media&token=...
+            String originalFileName = originalFileNameWithQuery.split('?').first; // e.g., 1752509092842_08c3f151-972d-4385-ba4b-cb401f1ac49c
+
+            String finalExtension = '';
+            String baseFileName = originalFileName; // Start with the original name
+
+            if (contentType != null) {
+              if (contentType == 'image/jpeg') {
+                finalExtension = '.jpg';
+              } else if (contentType == 'image/png') {
+                finalExtension = '.png';
+              } else if (contentType == 'image/gif') {
+                finalExtension = '.gif';
+              } else if (contentType == 'application/octet-stream') {
+                // If octet-stream, try to infer from originalFileName
+                if (originalFileName.contains('.')) {
+                  final potentialExtension = '.' + originalFileName.split('.').last;
+                  if (['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'].contains(potentialExtension.toLowerCase())) {
+                    finalExtension = potentialExtension;
+                    baseFileName = path.basenameWithoutExtension(originalFileName); // Remove original extension if valid
+                  }
+                }
+                // If no valid image extension found in originalFileName, default to .jpg
+                if (finalExtension.isEmpty) {
+                  finalExtension = '.jpg'; // Default to JPG
+                }
+              }
+            }
+
+            // Ensure baseFileName doesn't end with a dot if no extension was found
+            if (finalExtension.isEmpty && baseFileName.endsWith('.')) {
+              baseFileName = baseFileName.substring(0, baseFileName.length - 1);
+            }
+
+            // Construct the final file name for the archive, including item display name
+            // To avoid conflicts if multiple images have the same base name, append a timestamp or a hash
+            // For simplicity, let's append a part of the original file name (e.g., the last few chars of the hash)
+            String uniqueifier = originalFileName.length > 8 ? originalFileName.substring(originalFileName.length - 8) : originalFileName;
+            String archiveImageFileName = '${itemDisplayName}_${uniqueifier}${finalExtension}';
+            String archiveFilePath = '$itemDisplayName/$archiveImageFileName'; // Folder structure
+
+            archive.addFile(ArchiveFile(archiveFilePath, response.bodyBytes.length, response.bodyBytes));
             imageCount++;
-            print('Successfully downloaded image: $fileName');
+            print('Successfully downloaded image: $archiveFilePath');
           } else {
-            print('Failed to download image from $imageUrl: Status Code ${response.statusCode}');
+            print('Failed to download image from $imageUrl: Status Code ${response.statusCode}, Content-Type: $contentType');
           }
         } catch (e) {
           print('Error downloading image from $imageUrl: $e');
@@ -450,9 +597,9 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
         return;
       }
 
-      // 3. ZIP 파일 다운로드 (플랫폼별 유틸리티 함수 사용)
-      final fileName = 'images_${widget.auditId}_${widget.scheduleId}.zip';
-      await downloadZipFile(Uint8List.fromList(output), fileName);
+      // 4. ZIP 파일 다운로드 (플랫폼별 유틸리티 함수 사용)
+      final zipFileName = '${customFileName}.zip';
+      await downloadZipFile(Uint8List.fromList(output), zipFileName);
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('$imageCount개의 이미지를 압축하여 다운로드했습니다.')),
@@ -666,6 +813,51 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
     }
   }
 
+  Future<void> _toggleItemChecked(Map<String, dynamic> item) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final bool newCheckedStatus = !(item['isChecked'] ?? false);
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('audits')
+          .doc(widget.auditId)
+          .collection('schedules')
+          .doc(widget.scheduleId)
+          .collection('categories')
+          .doc(item['id'])
+          .update({'isChecked': newCheckedStatus});
+
+      // Update local state to reflect the change immediately
+      setState(() {
+        // Find the item in _categoryData and update its isChecked status
+        _categoryData.forEach((categoryName, items) {
+          for (var i = 0; i < items.length; i++) {
+            if (items[i]['id'] == item['id']) {
+              items[i]['isChecked'] = newCheckedStatus;
+              return;
+            }
+            // Check in sub-items if it's a folder
+            if (items[i]['type'] == 'folder' && items[i].containsKey('items')) {
+              for (var j = 0; j < items[i]['items'].length; j++) {
+                if (items[i]['items'][j]['id'] == item['id']) {
+                  items[i]['items'][j]['isChecked'] = newCheckedStatus;
+                  return;
+                }
+              }
+            }
+          }
+        });
+      });
+    } catch (e) {
+      print("Error updating item checked status: $e");
+      // Optionally show a SnackBar or AlertDialog to the user
+    }
+  }
+
   // 개별 항목/폴더 위젯 (변경 없음)
   Widget _buildItemWidget(
     Map<String, dynamic> item,
@@ -736,9 +928,23 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
         ],
       );
     } else {
+      bool isChecked = item['isChecked'] ?? false;
       return ListTile(
         key: key, // Add key for ReorderableListView
-        title: Text(item['displayName'], style: const TextStyle(fontSize: 14)),
+        leading: Checkbox(
+          value: isChecked,
+          onChanged: (bool? newValue) {
+            _toggleItemChecked(item);
+          },
+        ),
+        title: Text(
+          item['displayName'],
+          style: TextStyle(
+            fontSize: 14,
+            decoration: isChecked ? TextDecoration.lineThrough : TextDecoration.none,
+            color: isChecked ? Colors.grey : null,
+          ),
+        ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
