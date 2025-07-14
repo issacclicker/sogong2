@@ -255,6 +255,7 @@ class _AuditListPageState extends State<AuditListPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF9F9F9),
       appBar: AppBar(
+        automaticallyImplyLeading: false, // 뒤로가기 버튼 비활성화
         title: const Text(
           '감사 목록',
           style: TextStyle(

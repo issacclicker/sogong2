@@ -1217,108 +1217,96 @@ class _HomePageState extends State<HomePage> {
             CrossAxisAlignment.start, // Ensure left-aligned content
         children: [
           if (_isSidebarVisible)
-            Expanded(
-              flex: 2, // Adjust flex as needed for sidebar width
-              child: Container(
-                color: AppColors.grey100,
-                child: Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(spacing8),
-                      child: IconButton(
-                        icon: Icon(Icons.add, color: AppColors.textPrimary),
-                        onPressed: _showAddScheduleDialog,
-                      ),
+            Container(
+              width: 200.0,
+              color: AppColors.grey100,
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(spacing8),
+                    child: IconButton(
+                      icon: Icon(Icons.add, color: AppColors.textPrimary),
+                      onPressed: _showAddScheduleDialog,
                     ),
-                    const Divider(),
-                    Expanded(
-                      child: ListView(
-                        children: groupedSidebarItems.entries.expand((entry) {
-                          if (entry.key == '일정 목록') {
-                            return entry.value.map((sub) {
-                              return ListTile(
-                                title: Flexible( // Make text flexible
-                                  child: Text(
-                                    sub,
-                                    style: Theme.of(context).textTheme.bodyLarge,
-                                    overflow: TextOverflow.ellipsis, // Handle overflow
-                                  ),
-                                ),
-                                trailing: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    IconButton(
-                                      icon: const Icon(
-                                        Icons.edit,
-                                        size: 20.0,
-                                        color: AppColors.textSecondary,
-                                      ),
-                                      onPressed: () =>
-                                          _showEditScheduleDialog(sub),
+                  ),
+                  const Divider(),
+                  Expanded(
+                    child: ListView(
+                      children: groupedSidebarItems.entries.expand((entry) {
+                        if (entry.key == '일정 목록') {
+                          return entry.value.map((sub) {
+                            return ListTile(
+                              title: Text(
+                                sub,
+                                style: Theme.of(context).textTheme.bodyLarge,
+                              ),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.edit,
+                                      size: 20.0,
+                                      color: AppColors.textSecondary,
                                     ),
-                                    IconButton(
-                                      icon: const Icon(
-                                        Icons.delete,
-                                        size: 20.0,
-                                        color: AppColors.error,
-                                      ),
-                                      onPressed: () =>
-                                          _showDeleteConfirmDialog(sub),
-                                    ),
-                                  ],
-                                ),
-                                onTap: () async {
-                                  final selectedScheduleId =
-                                      await _getScheduleIdByText(sub);
-                                  if (selectedScheduleId != null) {
-                                    await Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => MenuDetailSidebarPage(
-                                          auditId: _auditId,
-                                          scheduleId: selectedScheduleId,
-                                        ),
-                                      ),
-                                    );
-                                  }
-                                },
-                              );
-                            }).toList();
-                          } else {
-                            return [
-                              ExpansionTile(
-                                title: Flexible( // Make text flexible
-                                  child: Text(
-                                    entry.key,
-                                    style: Theme.of(context).textTheme.bodyLarge,
-                                    overflow: TextOverflow.ellipsis, // Handle overflow
+                                    onPressed: () =>
+                                        _showEditScheduleDialog(sub),
                                   ),
-                                ),
-                                children: entry.value.map((sub) {
-                                  return ListTile(
-                                    title: Flexible( // Make text flexible
-                                      child: Text(
-                                        sub,
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.bodyLarge,
-                                        overflow: TextOverflow.ellipsis, // Handle overflow
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.delete,
+                                      size: 20.0,
+                                      color: AppColors.error,
+                                    ),
+                                    onPressed: () =>
+                                        _showDeleteConfirmDialog(sub),
+                                  ),
+                                ],
+                              ),
+                              onTap: () async {
+                                final selectedScheduleId =
+                                    await _getScheduleIdByText(sub);
+                                if (selectedScheduleId != null) {
+                                  await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => MenuDetailSidebarPage(
+                                        auditId: _auditId,
+                                        scheduleId: selectedScheduleId,
                                       ),
                                     ),
                                   );
-                                }).toList(),
+                                }
+                              },
+                            );
+                          }).toList();
+                        } else {
+                          return [
+                            ExpansionTile(
+                              title: Text(
+                                entry.key,
+                                style: Theme.of(context).textTheme.bodyLarge,
                               ),
-                            ];
-                          }
-                        }).toList(),
-                      ),
+                              children: entry.value.map((sub) {
+                                return ListTile(
+                                  title: Text(
+                                    sub,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodyLarge,
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          ];
+                        }
+                      }).toList(),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           Expanded(
-            flex: 5, // Adjust flex as needed for main content width
             child: Column(
               crossAxisAlignment:
                   CrossAxisAlignment.start, // Ensure left-aligned content
