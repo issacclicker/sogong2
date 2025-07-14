@@ -325,6 +325,7 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
             'parentFolderId': parentFolderId,
             'createdAt': Timestamp.now(),
             'orderIndex': Timestamp.now().millisecondsSinceEpoch,
+            'isChecked': false, // Add this line
           });
       _loadDataFromFirestore();
     }
@@ -340,46 +341,92 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
     }
 
     String scheduleDisplayName = '알 수 없는 일정'; // 기본값
-    print('Fetching schedule for auditId: ${widget.auditId}, scheduleId: ${widget.scheduleId}');
     final scheduleDoc = await FirebaseFirestore.instance
         .collection('audits')
         .doc(widget.auditId)
         .collection('schedules')
         .doc(widget.scheduleId)
         .get();
-    print('scheduleDoc exists: ${scheduleDoc.exists}');
     if (scheduleDoc.exists) {
-      print('scheduleDoc data: ${scheduleDoc.data()}');
       scheduleDisplayName = scheduleDoc.data()!['text'] ?? '알 수 없는 일정';
-      print('scheduleDisplayName from Firestore: $scheduleDisplayName');
-    } else {
-      print('scheduleDoc does not exist.');
     }
 
     final defaultZipFileNameWithoutExtension = '${scheduleDisplayName} 감사 자료';
 
-    return showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('사진 압축 파일 다운로드'),
-          content: const Text('모든 사진을 압축하여 다운로드하시겠습니까?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('취소'),
+    // 체크되지 않은 항목 찾기
+    List<String> uncheckedItems = [];
+    _categoryData.forEach((categoryName, items) {
+      for (var item in items) {
+        if (item['type'] == 'item' && !(item['isChecked'] ?? false)) {
+          uncheckedItems.add(item['displayName']);
+        } else if (item['type'] == 'folder' && item.containsKey('items')) {
+          for (var childItem in item['items']) {
+            if (!(childItem['isChecked'] ?? false)) {
+              uncheckedItems.add(childItem['displayName']);
+            }
+          }
+        }
+      }
+    });
+
+    if (uncheckedItems.isNotEmpty) {
+      // 체크되지 않은 항목이 있을 경우 경고 대화 상자 표시
+      return showDialog(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text('미완료 항목 경고'),
+            content: SingleChildScrollView(
+              child: ListBody(
+                children: <Widget>[
+                  const Text('다음 항목들이 체크되지 않았습니다. 다운로드를 진행하시겠습니까?'),
+                  const SizedBox(height: 10),
+                  ...uncheckedItems.map((item) => Text('- $item')),
+                ],
+              ),
             ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _triggerDownloadZip(defaultZipFileNameWithoutExtension);
-              },
-              child: const Text('다운로드'),
-            ),
-          ],
-        );
-      },
-    );
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false), // '아니오' 선택
+                child: const Text('아니오'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true), // '예' 선택
+                child: const Text('예'),
+              ),
+            ],
+          );
+        },
+      ).then((proceed) {
+        if (proceed == true) {
+          _triggerDownloadZip(defaultZipFileNameWithoutExtension);
+        }
+      });
+    } else {
+      // 체크되지 않은 항목이 없을 경우 바로 다운로드 진행
+      return showDialog(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text('사진 압축 파일 다운로드'),
+            content: const Text('모든 사진을 압축하여 다운로드하시겠습니까?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('취소'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _triggerDownloadZip(defaultZipFileNameWithoutExtension);
+                },
+                child: const Text('다운로드'),
+              ),
+            ],
+          );
+        },
+      );
+    }
   }
 
   Future<void> _triggerDownloadZip(String customFileName) async {
@@ -766,6 +813,51 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
     }
   }
 
+  Future<void> _toggleItemChecked(Map<String, dynamic> item) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final bool newCheckedStatus = !(item['isChecked'] ?? false);
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('audits')
+          .doc(widget.auditId)
+          .collection('schedules')
+          .doc(widget.scheduleId)
+          .collection('categories')
+          .doc(item['id'])
+          .update({'isChecked': newCheckedStatus});
+
+      // Update local state to reflect the change immediately
+      setState(() {
+        // Find the item in _categoryData and update its isChecked status
+        _categoryData.forEach((categoryName, items) {
+          for (var i = 0; i < items.length; i++) {
+            if (items[i]['id'] == item['id']) {
+              items[i]['isChecked'] = newCheckedStatus;
+              return;
+            }
+            // Check in sub-items if it's a folder
+            if (items[i]['type'] == 'folder' && items[i].containsKey('items')) {
+              for (var j = 0; j < items[i]['items'].length; j++) {
+                if (items[i]['items'][j]['id'] == item['id']) {
+                  items[i]['items'][j]['isChecked'] = newCheckedStatus;
+                  return;
+                }
+              }
+            }
+          }
+        });
+      });
+    } catch (e) {
+      print("Error updating item checked status: $e");
+      // Optionally show a SnackBar or AlertDialog to the user
+    }
+  }
+
   // 개별 항목/폴더 위젯 (변경 없음)
   Widget _buildItemWidget(
     Map<String, dynamic> item,
@@ -836,9 +928,23 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
         ],
       );
     } else {
+      bool isChecked = item['isChecked'] ?? false;
       return ListTile(
         key: key, // Add key for ReorderableListView
-        title: Text(item['displayName'], style: const TextStyle(fontSize: 14)),
+        leading: Checkbox(
+          value: isChecked,
+          onChanged: (bool? newValue) {
+            _toggleItemChecked(item);
+          },
+        ),
+        title: Text(
+          item['displayName'],
+          style: TextStyle(
+            fontSize: 14,
+            decoration: isChecked ? TextDecoration.lineThrough : TextDecoration.none,
+            color: isChecked ? Colors.grey : null,
+          ),
+        ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
