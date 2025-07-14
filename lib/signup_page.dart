@@ -30,7 +30,7 @@ class _SignUpPageState extends State<SignUpPage> {
                 Navigator.pop(context); // signup page
               },
               child: const Text("확인"),
-            )
+            ),
           ],
         ),
       );
@@ -63,10 +63,7 @@ class _SignUpPageState extends State<SignUpPage> {
               decoration: const InputDecoration(labelText: "비밀번호"),
             ),
             const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: signUp,
-              child: const Text("회원가입"),
-            ),
+            ElevatedButton(onPressed: signUp, child: const Text("회원가입")),
           ],
         ),
       ),

@@ -21,7 +21,9 @@ class _LoginPageState extends State<LoginPage> {
     super.initState();
     emailController.addListener(() {
       setState(() {
-        isEmailValid = RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(emailController.text);
+        isEmailValid = RegExp(
+          r'^[^@]+@[^@]+\.[^@]+',
+        ).hasMatch(emailController.text);
       });
     });
     passwordController.addListener(() {
@@ -54,7 +56,9 @@ class _LoginPageState extends State<LoginPage> {
       } else if (e.code == 'wrong-password') {
         message = '비밀번호가 틀렸습니다.';
       }
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     }
   }
 
@@ -67,9 +71,7 @@ class _LoginPageState extends State<LoginPage> {
           builder: (context, constraints) {
             return SingleChildScrollView(
               child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight: constraints.maxHeight,
-                ),
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
                 child: IntrinsicHeight(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -87,60 +89,80 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                         SizedBox(height: constraints.maxHeight * 0.05),
                         Focus(
-                          child: Builder(builder: (context) {
-                            final FocusNode focusNode = Focus.of(context);
-                            return TextField(
-                              controller: emailController,
-                              decoration: InputDecoration(
-                                labelText: '이메일',
-                                labelStyle: const TextStyle(
+                          child: Builder(
+                            builder: (context) {
+                              final FocusNode focusNode = Focus.of(context);
+                              return TextField(
+                                controller: emailController,
+                                decoration: InputDecoration(
+                                  labelText: '이메일',
+                                  labelStyle: const TextStyle(
                                     color: Color(0xFF212121),
-                                    fontWeight: FontWeight.w400),
-                                filled: focusNode.hasFocus,
-                                fillColor: const Color(0xFFF9F9F9),
-                                suffixIcon: isEmailValid
-                                    ? const Icon(Icons.check, color: Colors.green)
-                                    : null,
-                                enabledBorder: const UnderlineInputBorder(
-                                  borderSide: BorderSide(
-                                      color: Color(0xFFE0E0E0), width: 1),
+                                    fontWeight: FontWeight.w400,
+                                  ),
+                                  filled: focusNode.hasFocus,
+                                  fillColor: const Color(0xFFF9F9F9),
+                                  suffixIcon: isEmailValid
+                                      ? const Icon(
+                                          Icons.check,
+                                          color: Colors.green,
+                                        )
+                                      : null,
+                                  enabledBorder: const UnderlineInputBorder(
+                                    borderSide: BorderSide(
+                                      color: Color(0xFFE0E0E0),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  focusedBorder: const UnderlineInputBorder(
+                                    borderSide: BorderSide(
+                                      color: Color(0xFF212121),
+                                      width: 2,
+                                    ),
+                                  ),
                                 ),
-                                focusedBorder: const UnderlineInputBorder(
-                                  borderSide: BorderSide(
-                                      color: Color(0xFF212121), width: 2),
-                                ),
-                              ),
-                            );
-                          }),
+                              );
+                            },
+                          ),
                         ),
                         SizedBox(height: constraints.maxHeight * 0.03),
                         Focus(
-                          child: Builder(builder: (context) {
-                            final FocusNode focusNode = Focus.of(context);
-                            return TextField(
-                              controller: passwordController,
-                              obscureText: true,
-                              decoration: InputDecoration(
-                                labelText: '비밀번호',
-                                labelStyle: const TextStyle(
+                          child: Builder(
+                            builder: (context) {
+                              final FocusNode focusNode = Focus.of(context);
+                              return TextField(
+                                controller: passwordController,
+                                obscureText: true,
+                                decoration: InputDecoration(
+                                  labelText: '비밀번호',
+                                  labelStyle: const TextStyle(
                                     color: Color(0xFF212121),
-                                    fontWeight: FontWeight.w400),
-                                filled: focusNode.hasFocus,
-                                fillColor: const Color(0xFFF9F9F9),
-                                suffixIcon: isPasswordValid
-                                    ? const Icon(Icons.check, color: Colors.green)
-                                    : null,
-                                enabledBorder: const UnderlineInputBorder(
-                                  borderSide: BorderSide(
-                                      color: Color(0xFFE0E0E0), width: 1),
+                                    fontWeight: FontWeight.w400,
+                                  ),
+                                  filled: focusNode.hasFocus,
+                                  fillColor: const Color(0xFFF9F9F9),
+                                  suffixIcon: isPasswordValid
+                                      ? const Icon(
+                                          Icons.check,
+                                          color: Colors.green,
+                                        )
+                                      : null,
+                                  enabledBorder: const UnderlineInputBorder(
+                                    borderSide: BorderSide(
+                                      color: Color(0xFFE0E0E0),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  focusedBorder: const UnderlineInputBorder(
+                                    borderSide: BorderSide(
+                                      color: Color(0xFF212121),
+                                      width: 2,
+                                    ),
+                                  ),
                                 ),
-                                focusedBorder: const UnderlineInputBorder(
-                                  borderSide: BorderSide(
-                                      color: Color(0xFF212121), width: 2),
-                                ),
-                              ),
-                            );
-                          }),
+                              );
+                            },
+                          ),
                         ),
                         const Spacer(),
                         AnimatedOpacity(
@@ -150,7 +172,10 @@ class _LoginPageState extends State<LoginPage> {
                             onPressed: login,
                             style: TextButton.styleFrom(
                               backgroundColor: const Color(0xFF007BFF),
-                              minimumSize: Size(double.infinity, constraints.maxHeight * 0.07),
+                              minimumSize: Size(
+                                double.infinity,
+                                constraints.maxHeight * 0.07,
+                              ),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
                               ),

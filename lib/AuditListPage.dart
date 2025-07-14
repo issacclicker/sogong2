@@ -63,10 +63,7 @@ class AuditListPage extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text(
-              '취소',
-              style: TextStyle(color: Color(0xFF666666)),
-            ),
+            child: const Text('취소', style: TextStyle(color: Color(0xFF666666))),
           ),
           TextButton(
             onPressed: () async {
@@ -84,10 +81,7 @@ class AuditListPage extends StatelessWidget {
               }
               Navigator.pop(context);
             },
-            child: const Text(
-              '추가',
-              style: TextStyle(color: Color(0xFF3A49FF)),
-            ),
+            child: const Text('추가', style: TextStyle(color: Color(0xFF3A49FF))),
           ),
         ],
       ),
@@ -131,19 +125,29 @@ class AuditListPage extends StatelessWidget {
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return Center(
-                child: Text('오류가 발생했어요: ${snapshot.error}',
-                    style: const TextStyle(fontSize: 16, color: Color(0xFF666666))));
+              child: Text(
+                '오류가 발생했어요: ${snapshot.error}',
+                style: const TextStyle(fontSize: 16, color: Color(0xFF666666)),
+              ),
+            );
           }
 
-          if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator(color: Color(0xFF3A49FF)));
+          if (snapshot.connectionState == ConnectionState.waiting &&
+              !snapshot.hasData) {
+            return const Center(
+              child: CircularProgressIndicator(color: Color(0xFF3A49FF)),
+            );
           }
 
           final docs = snapshot.data?.docs ?? [];
 
           if (docs.isEmpty) {
             return const Center(
-                child: Text('아직 등록된 감사가 없어요.', style: TextStyle(fontSize: 16, color: Color(0xFF666666))));
+              child: Text(
+                '아직 등록된 감사가 없어요.',
+                style: TextStyle(fontSize: 16, color: Color(0xFF666666)),
+              ),
+            );
           }
 
           return ListView.separated(
@@ -159,12 +163,16 @@ class AuditListPage extends StatelessWidget {
               return Card(
                 elevation: 1,
                 shadowColor: const Color(0x10000000),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 child: InkWell(
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => HomePage(auditId: auditId)),
+                      MaterialPageRoute(
+                        builder: (_) => HomePage(auditId: auditId),
+                      ),
                     );
                   },
                   borderRadius: BorderRadius.circular(12),

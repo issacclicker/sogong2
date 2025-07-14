@@ -75,7 +75,8 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
       var data = doc.data();
       data['id'] = doc.id;
       if (data['type'] == 'folder') {
-        data['items'] = <Map<String, dynamic>>[]; // Initialize items list for folders
+        data['items'] =
+            <Map<String, dynamic>>[]; // Initialize items list for folders
       }
       allEntitiesMap[doc.id] = data;
     }
@@ -83,7 +84,9 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
     // Build the hierarchy and populate _categoryData
     allEntitiesMap.forEach((id, entity) {
       final parentId = entity['parentFolderId'];
-      if (parentId != null && allEntitiesMap.containsKey(parentId) && allEntitiesMap[parentId]!['type'] == 'folder') {
+      if (parentId != null &&
+          allEntitiesMap.containsKey(parentId) &&
+          allEntitiesMap[parentId]!['type'] == 'folder') {
         // This entity is a child of a folder
         allEntitiesMap[parentId]!['items'].add(entity);
       } else {
@@ -97,12 +100,19 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
   }
 
   // 항목/폴더 추가 로직 (수정됨)
-  Future<void> _navigateAndAddItem(String category, {bool isCreatingFolder = false, String? parentFolderId}) async {
+  Future<void> _navigateAndAddItem(
+    String category, {
+    bool isCreatingFolder = false,
+    String? parentFolderId,
+  }) async {
     // isCreatingFolder가 true이면, CategoryAddPage로 이동하여 폴더로 사용할 항목을 선택
     if (isCreatingFolder) {
       final result = await Navigator.push<Map<String, String>>(
         context,
-        MaterialPageRoute(builder: (_) => CategoryAddPage(initialCategory: category, isForFolder: true)),
+        MaterialPageRoute(
+          builder: (_) =>
+              CategoryAddPage(initialCategory: category, isForFolder: true),
+        ),
       );
 
       if (result != null) {
@@ -120,12 +130,12 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
             .doc(widget.scheduleId)
             .collection('categories')
             .add({
-          'type': 'folder', // 항상 'folder' 타입으로 저장
-          'category': category,
-          'displayName': displayName,
-          'createdAt': Timestamp.now(),
-          'orderIndex': Timestamp.now().millisecondsSinceEpoch,
-        });
+              'type': 'folder', // 항상 'folder' 타입으로 저장
+              'category': category,
+              'displayName': displayName,
+              'createdAt': Timestamp.now(),
+              'orderIndex': Timestamp.now().millisecondsSinceEpoch,
+            });
         _loadDataFromFirestore();
       }
     } else {
@@ -158,23 +168,21 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
             },
             child: const Text('삭제', style: TextStyle(color: Colors.red)),
           ),
-
         ],
       ),
     );
   }
 
   Future<void> _showEditFolderDialog(Map<String, dynamic> folder) async {
-    final folderNameController = TextEditingController(text: folder['displayName']);
+    final folderNameController = TextEditingController(
+      text: folder['displayName'],
+    );
 
     final newName = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('폴더 이름 수정'),
-        content: TextField(
-          controller: folderNameController,
-          autofocus: true,
-        ),
+        content: TextField(controller: folderNameController, autofocus: true),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -192,7 +200,9 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
       ),
     );
 
-    if (newName != null && newName.isNotEmpty && newName != folder['displayName']) {
+    if (newName != null &&
+        newName.isNotEmpty &&
+        newName != folder['displayName']) {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
@@ -218,10 +228,7 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('항목 이름 수정'),
-        content: TextField(
-          controller: itemNameController,
-          autofocus: true,
-        ),
+        content: TextField(controller: itemNameController, autofocus: true),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -239,7 +246,9 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
       ),
     );
 
-    if (newName != null && newName.isNotEmpty && newName != item['displayName']) {
+    if (newName != null &&
+        newName.isNotEmpty &&
+        newName != item['displayName']) {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
@@ -258,7 +267,10 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
     }
   }
 
-  Future<void> _showAddItemDialog(String category, String? parentFolderId) async {
+  Future<void> _showAddItemDialog(
+    String category,
+    String? parentFolderId,
+  ) async {
     final itemNameController = TextEditingController();
 
     final itemName = await showDialog<String>(
@@ -300,13 +312,13 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
           .doc(widget.scheduleId)
           .collection('categories')
           .add({
-        'type': 'item',
-        'category': category,
-        'displayName': itemName,
-        'parentFolderId': parentFolderId,
-        'createdAt': Timestamp.now(),
-        'orderIndex': Timestamp.now().millisecondsSinceEpoch,
-      });
+            'type': 'item',
+            'category': category,
+            'displayName': itemName,
+            'parentFolderId': parentFolderId,
+            'createdAt': Timestamp.now(),
+            'orderIndex': Timestamp.now().millisecondsSinceEpoch,
+          });
       _loadDataFromFirestore();
     }
   }
@@ -359,7 +371,9 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
     });
 
     try {
-      final HttpsCallable callable = FirebaseFunctions.instance.httpsCallable('sendEmailWithImages');
+      final HttpsCallable callable = FirebaseFunctions.instance.httpsCallable(
+        'sendEmailWithImages',
+      );
       final response = await callable.call(<String, dynamic>{
         'auditId': widget.auditId,
         'scheduleId': widget.scheduleId,
@@ -371,9 +385,9 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
       );
     } on FirebaseFunctionsException catch (e) {
       print('Cloud Function Error: ${e.code} - ${e.message}');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('이메일 발송 실패: ${e.message}')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('이메일 발송 실패: ${e.message}')));
     } catch (e) {
       print('Generic Error: $e');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -395,7 +409,9 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
           if (_isSendingEmail)
             const Padding(
               padding: EdgeInsets.only(right: 16.0),
-              child: Center(child: CircularProgressIndicator(color: Colors.white)),
+              child: Center(
+                child: CircularProgressIndicator(color: Colors.white),
+              ),
             )
           else
             IconButton(
@@ -412,9 +428,7 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
             color: Colors.grey[200],
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : ListView(
-              children: _buildCategoryList(),
-            ),
+                : ListView(children: _buildCategoryList()),
           ),
           const VerticalDivider(width: 1),
           // Right Content Area
@@ -422,19 +436,26 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
             child: _selectedItemInfo == null
                 ? const Center(child: Text("항목을 선택해주세요"))
                 : GalleryUploadPage(
-              key: ValueKey(_selectedItemInfo!['id']), // Add key to force widget rebuild
-              auditId: widget.auditId,
-              scheduleId: widget.scheduleId,
-              itemId: _selectedItemInfo!['id'],
-              itemDisplayName: _selectedItemInfo!['displayName'],
-            ),
+                    key: ValueKey(
+                      _selectedItemInfo!['id'],
+                    ), // Add key to force widget rebuild
+                    auditId: widget.auditId,
+                    scheduleId: widget.scheduleId,
+                    itemId: _selectedItemInfo!['id'],
+                    itemDisplayName: _selectedItemInfo!['displayName'],
+                  ),
           ),
         ],
       ),
     );
   }
 
-  Future<void> _updateItemOrder(String categoryName, int oldIndex, int newIndex, {String? parentFolderId}) async {
+  Future<void> _updateItemOrder(
+    String categoryName,
+    int oldIndex,
+    int newIndex, {
+    String? parentFolderId,
+  }) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
@@ -446,7 +467,7 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
       // Child items within a folder
       // Find the parent folder in _categoryData
       final parentFolder = _categoryData[categoryName]!.firstWhere(
-            (element) => element['id'] == parentFolderId,
+        (element) => element['id'] == parentFolderId,
         orElse: () => throw Exception("Parent folder not found"),
       );
       items = parentFolder['items'];
@@ -485,7 +506,9 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
             .doc(widget.scheduleId)
             .collection('categories')
             .doc(parentFolderId) // Parent folder ID
-            .collection('items') // Assuming sub-collection for items within a folder
+            .collection(
+              'items',
+            ) // Assuming sub-collection for items within a folder
             .doc(items[i]['id']);
       }
 
@@ -508,13 +531,17 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
 
       return ExpansionTile(
         initiallyExpanded: true,
-        title: Text(categoryName, style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(
+          categoryName,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
         children: [
           ListTile(
             leading: const Icon(Icons.create_new_folder_outlined),
             title: const Text('폴더 추가', style: TextStyle(fontSize: 14)),
             dense: true,
-            onTap: () => _navigateAndAddItem(categoryName, isCreatingFolder: true),
+            onTap: () =>
+                _navigateAndAddItem(categoryName, isCreatingFolder: true),
           ),
           const Divider(),
           ReorderableListView.builder(
@@ -524,7 +551,12 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
             itemCount: items.length,
             itemBuilder: (context, index) {
               final item = items[index];
-              return _buildItemWidget(item, categoryName, key: ValueKey(item['id']), itemIndex: index); // Pass itemIndex
+              return _buildItemWidget(
+                item,
+                categoryName,
+                key: ValueKey(item['id']),
+                itemIndex: index,
+              ); // Pass itemIndex
             },
             onReorder: (oldIndex, newIndex) {
               _updateItemOrder(categoryName, oldIndex, newIndex);
@@ -566,7 +598,12 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
   }
 
   // 개별 항목/폴더 위젯 (변경 없음)
-  Widget _buildItemWidget(Map<String, dynamic> item, String categoryName, {Key? key, int? itemIndex}) {
+  Widget _buildItemWidget(
+    Map<String, dynamic> item,
+    String categoryName, {
+    Key? key,
+    int? itemIndex,
+  }) {
     bool isFolder = item['type'] == 'folder';
 
     if (isFolder) {
@@ -576,10 +613,18 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
           children: [
             const Icon(Icons.folder, color: Colors.orange),
             const SizedBox(width: 8),
-            Expanded(child: Text(item['displayName'], style: const TextStyle(fontSize: 14))),
+            Expanded(
+              child: Text(
+                item['displayName'],
+                style: const TextStyle(fontSize: 14),
+              ),
+            ),
             ReorderableDragStartListener(
               index: itemIndex!, // Use itemIndex here
-              child: const Icon(Icons.drag_handle, size: 20), // Drag handle for folders
+              child: const Icon(
+                Icons.drag_handle,
+                size: 20,
+              ), // Drag handle for folders
             ),
             IconButton(
               icon: const Icon(Icons.edit, size: 20),
@@ -592,7 +637,8 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
             leading: const Icon(Icons.add, size: 20),
             title: const Text('항목 추가', style: TextStyle(fontSize: 13)),
             dense: true,
-            onTap: () => _navigateAndAddItem(categoryName, parentFolderId: item['id']),
+            onTap: () =>
+                _navigateAndAddItem(categoryName, parentFolderId: item['id']),
           ),
           ReorderableListView.builder(
             shrinkWrap: true,
@@ -600,11 +646,22 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
             buildDefaultDragHandles: false, // Add this line
             itemCount: (item['items'] as List<Map<String, dynamic>>).length,
             itemBuilder: (context, index) {
-              final childItem = (item['items'] as List<Map<String, dynamic>>)[index];
-              return _buildItemWidget(childItem, categoryName, key: ValueKey(childItem['id']), itemIndex: index); // Pass index here
+              final childItem =
+                  (item['items'] as List<Map<String, dynamic>>)[index];
+              return _buildItemWidget(
+                childItem,
+                categoryName,
+                key: ValueKey(childItem['id']),
+                itemIndex: index,
+              ); // Pass index here
             },
             onReorder: (oldIndex, newIndex) {
-              _updateItemOrder(categoryName, oldIndex, newIndex, parentFolderId: item['id']);
+              _updateItemOrder(
+                categoryName,
+                oldIndex,
+                newIndex,
+                parentFolderId: item['id'],
+              );
             },
           ),
         ],
@@ -618,7 +675,10 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
           children: [
             ReorderableDragStartListener(
               index: itemIndex!, // Use itemIndex here
-              child: const Icon(Icons.drag_handle, size: 20), // Drag handle for items
+              child: const Icon(
+                Icons.drag_handle,
+                size: 20,
+              ), // Drag handle for items
             ),
             IconButton(
               icon: const Icon(Icons.edit, size: 20),

@@ -113,7 +113,8 @@ class _GalleryUploadPageState extends State<GalleryUploadPage> {
     try {
       // 1. Firebase Storage에 이미지 업로드
       final storageRef = FirebaseStorage.instance.ref().child(
-          'uploads/${user.uid}/${widget.auditId}/${widget.scheduleId}/${widget.itemId}.jpg');
+        'uploads/${user.uid}/${widget.auditId}/${widget.scheduleId}/${widget.itemId}.jpg',
+      );
 
       if (kIsWeb) {
         // 웹 환경에서는 putData 사용
@@ -136,28 +137,25 @@ class _GalleryUploadPageState extends State<GalleryUploadPage> {
           .collection('categories')
           .doc(widget.itemId)
           .set(
-        {
-          'imageUrl': downloadUrl,
-          'uploadedAt': Timestamp.now(),
-        },
-        SetOptions(merge: true), // 문서가 없으면 생성, 있으면 병합
-      );
+            {'imageUrl': downloadUrl, 'uploadedAt': Timestamp.now()},
+            SetOptions(merge: true), // 문서가 없으면 생성, 있으면 병합
+          );
 
       setState(() {
         _imageUrl = downloadUrl;
         _pickedImage = null; // 업로드 성공 후 선택된 이미지 초기화
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('사진이 성공적으로 업로드되었습니다.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('사진이 성공적으로 업로드되었습니다.')));
       }
     } catch (e) {
       print("Error uploading image: $e");
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('사진 업로드 실패: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('사진 업로드 실패: $e')));
       }
     } finally {
       setState(() => _isLoading = false);
@@ -172,9 +170,17 @@ class _GalleryUploadPageState extends State<GalleryUploadPage> {
     } else if (_pickedImage != null) {
       // 웹 환경에서는 Image.network 사용, 그 외에는 Image.file 사용
       if (kIsWeb) {
-        imageWidget = Image.network(_pickedImage!.path, width: 300, fit: BoxFit.contain);
+        imageWidget = Image.network(
+          _pickedImage!.path,
+          width: 300,
+          fit: BoxFit.contain,
+        );
       } else {
-        imageWidget = Image.file(File(_pickedImage!.path), width: 300, fit: BoxFit.contain);
+        imageWidget = Image.file(
+          File(_pickedImage!.path),
+          width: 300,
+          fit: BoxFit.contain,
+        );
       }
     } else if (_imageUrl != null) {
       imageWidget = Image.network(_imageUrl!, width: 300, fit: BoxFit.contain);
@@ -191,10 +197,7 @@ class _GalleryUploadPageState extends State<GalleryUploadPage> {
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 20),
-        SizedBox(
-          height: 300,
-          child: Center(child: imageWidget),
-        ),
+        SizedBox(height: 300, child: Center(child: imageWidget)),
         const SizedBox(height: 20),
         ElevatedButton(
           onPressed: _pickAndUploadImage,
