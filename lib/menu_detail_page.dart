@@ -2,6 +2,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:archive/archive_io.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:typed_data';
+
+import 'package:sogong/download_utils.dart';
 import 'category_add_page.dart';
 import 'gallery_upload_page.dart';
 
@@ -110,8 +117,7 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
       final result = await Navigator.push<Map<String, String>>(
         context,
         MaterialPageRoute(
-          builder: (_) =>
-              CategoryAddPage(initialCategory: category, isForFolder: true),
+          builder: (context) => CategoryAddPage(initialCategory: category, isForFolder: true),
         ),
       );
 
@@ -323,28 +329,13 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
     }
   }
 
-  Future<void> _showSendEmailDialog() async {
-    final emailController = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-
+  Future<void> _showDownloadZipDialog() async {
     return showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('이메일 발송'),
-          content: Form(
-            key: formKey,
-            child: TextFormField(
-              controller: emailController,
-              decoration: const InputDecoration(hintText: "받는 사람 이메일 주소"),
-              validator: (value) {
-                if (value == null || value.isEmpty || !value.contains('@')) {
-                  return '유효한 이메일 주소를 입력하세요.';
-                }
-                return null;
-              },
-            ),
-          ),
+          title: const Text('사진 압축 파일 다운로드'),
+          content: const Text('모든 사진을 압축하여 다운로드하시겠습니까?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
@@ -352,12 +343,10 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
             ),
             ElevatedButton(
               onPressed: () {
-                if (formKey.currentState!.validate()) {
-                  Navigator.pop(context);
-                  _triggerSendEmail(emailController.text);
-                }
+                Navigator.pop(context);
+                _triggerDownloadZip();
               },
-              child: const Text('발송'),
+              child: const Text('다운로드'),
             ),
           ],
         );
@@ -365,39 +354,119 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
     );
   }
 
-  Future<void> _triggerSendEmail(String recipientEmail) async {
+  Future<void> _triggerDownloadZip() async {
     setState(() {
-      _isSendingEmail = true;
+      _isSendingEmail = true; // 로딩 상태를 재활용
     });
 
     try {
-      final HttpsCallable callable = FirebaseFunctions.instance.httpsCallable(
-        'sendEmailWithImages',
-      );
-      final response = await callable.call(<String, dynamic>{
-        'auditId': widget.auditId,
-        'scheduleId': widget.scheduleId,
-        'recipientEmail': recipientEmail,
-      });
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('로그인이 필요합니다.')),
+        );
+        return;
+      }
+
+      // 1. 모든 이미지 URL 가져오기
+      print('Fetching categories for auditId: ${widget.auditId}, scheduleId: ${widget.scheduleId}');
+      final QuerySnapshot categorySnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('audits')
+          .doc(widget.auditId)
+          .collection('schedules')
+          .doc(widget.scheduleId)
+          .collection('categories')
+          .get();
+
+      print('Found ${categorySnapshot.docs.length} documents in categories collection.');
+
+      final List<String> imageUrls = [];
+      for (var doc in categorySnapshot.docs) {
+        final data = doc.data();
+        if (data != null) {
+          final Map<String, dynamic> itemData = data as Map<String, dynamic>;
+          if (itemData.containsKey('imageUrl') && itemData['imageUrl'] != null) {
+            imageUrls.add(itemData['imageUrl'] as String);
+            print('Found imageUrl: ${itemData['imageUrl']} for item: ${doc.id}');
+          } else {
+            print('Document ${doc.id} does not contain imageUrl or it is null.');
+          }
+        } else {
+          print('Document ${doc.id} has no data.');
+        }
+      }
+
+      if (imageUrls.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('다운로드할 이미지가 없습니다.')),
+        );
+        print('No image URLs found.');
+        return;
+      } else {
+        print('Total image URLs to download: ${imageUrls.length}');
+      }
+
+      // 2. 이미지 다운로드 및 압축
+      final archive = Archive();
+      int imageCount = 0;
+
+      for (final imageUrl in imageUrls) {
+        try {
+          print('Attempting to download image from: $imageUrl');
+          final parsedUri = Uri.parse(imageUrl); // 파싱된 URI 출력
+          print('Parsed URI: $parsedUri');
+
+          final response = await http.get(parsedUri); // 변경된 부분: parsedUri 사용
+          if (response.statusCode == 200) {
+            final fileName = imageUrl.split('/').last.split('?').first; // URL에서 파일 이름 추출
+            archive.addFile(ArchiveFile(fileName, response.bodyBytes.length, response.bodyBytes));
+            imageCount++;
+            print('Successfully downloaded image: $fileName');
+          } else {
+            print('Failed to download image from $imageUrl: Status Code ${response.statusCode}');
+          }
+        } catch (e) {
+          print('Error downloading image from $imageUrl: $e');
+        }
+      }
+
+      if (imageCount == 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('다운로드에 성공한 이미지가 없습니다.')),
+        );
+        print('No images were successfully downloaded.');
+        return;
+      }
+
+      final zipEncoder = ZipEncoder();
+      final output = zipEncoder.encode(archive);
+
+      if (output == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ZIP 파일 생성에 실패했습니다.')),
+        );
+        return;
+      }
+
+      // 3. ZIP 파일 다운로드 (플랫폼별 유틸리티 함수 사용)
+      final fileName = 'images_${widget.auditId}_${widget.scheduleId}.zip';
+      await downloadZipFile(Uint8List.fromList(output), fileName);
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(response.data['message'] ?? '이메일이 발송되었습니다.')),
+        SnackBar(content: Text('$imageCount개의 이미지를 압축하여 다운로드했습니다.')),
       );
-    } on FirebaseFunctionsException catch (e) {
-      print('Cloud Function Error: ${e.code} - ${e.message}');
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('이메일 발송 실패: ${e.message}')));
     } catch (e) {
-      print('Generic Error: $e');
+      print('Download Error: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('알 수 없는 오류로 이메일 발송에 실패했습니다.')),
+        const SnackBar(content: Text('압축 파일 다운로드에 실패했습니다.')),
       );
+    } finally {
+      setState(() {
+        _isSendingEmail = false; // 로딩 상태 해제
+      });
     }
-
-    setState(() {
-      _isSendingEmail = false;
-    });
   }
 
   @override
@@ -415,8 +484,8 @@ class _MenuDetailSidebarPageState extends State<MenuDetailSidebarPage> {
             )
           else
             IconButton(
-              icon: const Icon(Icons.email),
-              onPressed: _showSendEmailDialog,
+              icon: const Icon(Icons.download),
+              onPressed: _showDownloadZipDialog,
             ),
         ],
       ),
