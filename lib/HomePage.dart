@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'menu_detail_page.dart';
+import 'package:collection/collection.dart';
 import 'theme.dart';
 
 class HomePage extends StatefulWidget {
@@ -13,14 +15,28 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-const spacing8 = 8.0;
-const spacing16 = 16.0;
+const double spacing8 = 8.0;
+const double spacing16 = 16.0;
+const double spacing24 = 24.0;
+const double spacing32 = 32.0;
+const double spacing40 = 40.0;
+const double spacing48 = 48.0;
+
+// New Schedule class
+class Schedule {
+  final String id;
+  final String text;
+  final DateTime startDate;
+  final DateTime endDate;
+
+  Schedule({required this.id, required this.text, required this.startDate, required this.endDate});
+}
 
 class _HomePageState extends State<HomePage> {
   late String _auditId;
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
-  final Map<DateTime, List<String>> _schedules = {};
+  List<Schedule> _schedules = []; // Changed to List<Schedule>
   final List<String> _sidebarItems = [];
   bool _isSidebarVisible = false;
   String? _duplicateScheduleError;
@@ -32,50 +48,82 @@ class _HomePageState extends State<HomePage> {
     loadSchedules();
   }
 
-  Future<String> saveSchedule(String text, DateTime date) async {
-    final docRef = await FirebaseFirestore.instance
-        .collection('audits')
-        .doc(_auditId)
-        .collection('schedules')
-        .add({'text': text, 'date': Timestamp.fromDate(date)});
-    return docRef.id;
+  Future<String> saveSchedule(String text, DateTime startDate, DateTime endDate) async {
+    try {
+      print('Saving schedule to Firestore: text=$text, startDate=$startDate, endDate=$endDate');
+      final docRef = await FirebaseFirestore.instance
+          .collection('audits')
+          .doc(_auditId)
+          .collection('schedules')
+          .add({'text': text, 'startDate': Timestamp.fromDate(startDate), 'endDate': Timestamp.fromDate(endDate)});
+      print('Schedule saved with ID: ${docRef.id}');
+      return docRef.id;
+    } catch (e) {
+      print('Error saving schedule: $e');
+      rethrow; // Re-throw the error so it can be caught higher up
+    }
   }
 
   Future<void> loadSchedules() async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('audits')
-        .doc(_auditId)
-        .collection('schedules')
-        .get();
+    try {
+      print('Attempting to load schedules from Firebase...');
+      final snapshot = await FirebaseFirestore.instance
+          .collection('audits')
+          .doc(_auditId)
+          .collection('schedules')
+          .get();
 
-    for (var doc in snapshot.docs) {
-      final data = doc.data();
-      final date = (data['date'] as Timestamp).toDate();
-      final key = DateTime(date.year, date.month, date.day);
-      final text = data['text'] as String;
-      _schedules.putIfAbsent(key, () => []).add(text);
-      if (!_sidebarItems.contains(text)) {
-        _sidebarItems.add(text);
+      _schedules.clear(); // Clear existing schedules
+      _sidebarItems.clear(); // Clear existing sidebar items
+
+      print('Fetched ${snapshot.docs.length} schedules.');
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final id = doc.id;
+        final text = data['text'] as String?; // Make text nullable for safety
+        final dynamic rawStartDate = data['startDate'];
+        final dynamic rawEndDate = data['endDate'];
+
+        if (text == null || rawStartDate == null || rawEndDate == null || rawStartDate is! Timestamp || rawEndDate is! Timestamp) {
+          print('Skipping invalid schedule document (ID: $id) due to missing or invalid data: $data');
+          continue; // Skip this document if data is invalid
+        }
+
+        final startDate = rawStartDate.toDate();
+        final endDate = rawEndDate.toDate();
+
+        _schedules.add(Schedule(id: id, text: text, startDate: startDate, endDate: endDate));
+
+        if (!_sidebarItems.contains(text)) {
+          _sidebarItems.add(text);
+        }
+        print('Loaded schedule: $text (ID: $id)');
       }
+      setState(() {});
+    } catch (e) {
+      print('Error loading schedules: $e');
     }
-    setState(() {});
   }
 
   List<String> _getSchedulesForDay(DateTime day) {
-    return _schedules[DateTime(day.year, day.month, day.day)] ?? [];
+    return _schedules
+        .where((schedule) =>
+            !day.isBefore(schedule.startDate) && day.isBefore(schedule.endDate.add(const Duration(days: 1))))
+        .map((schedule) => schedule.text)
+        .toList();
   }
 
-  void _addSchedule(String text, DateTime date) {
-    final key = DateTime(date.year, date.month, date.day);
-    _schedules.putIfAbsent(key, () => []).add(text);
+  void _addSchedule(String text, DateTime startDate, DateTime endDate) async {
+    print('Attempting to add schedule: $text, Start: $startDate, End: $endDate');
+    final newScheduleId = await saveSchedule(text, startDate, endDate);
+    _schedules.add(Schedule(id: newScheduleId, text: text, startDate: startDate, endDate: endDate));
     if (!_sidebarItems.contains(text)) {
       _sidebarItems.add(text);
     }
-    saveSchedule(text, date);
     setState(() {});
   }
 
-  void _showTemplateSelectionDialog(String originalName, DateTime date) {
+  void _showTemplateSelectionDialog(String originalName, DateTime startDate, DateTime endDate) {
     const templates = [
       "뒤풀이",
       "공동구매(ex.과잠)",
@@ -94,43 +142,62 @@ class _HomePageState extends State<HomePage> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
+          backgroundColor: AppColors.pureWhite,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12.0),
+          ),
+          surfaceTintColor: Colors.transparent, // Remove default surface tint
           title: Text(
             "템플릿 선택",
             style: Theme.of(context).textTheme.displayMedium,
           ),
-          content: DropdownButton<String>(
-            value: selectedTemplate,
-            items: templates
-                .map(
-                  (t) => DropdownMenuItem(
-                    value: t,
-                    child: Text(
-                      t,
-                      style: Theme.of(context).textTheme.bodyLarge,
-                    ),
-                  ),
-                )
-                .toList(),
-            onChanged: (v) {
-              if (v != null) setState(() => selectedTemplate = v);
-            },
-            isExpanded: true,
+          contentPadding: const EdgeInsets.all(spacing24),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButton<String>(
+                value: selectedTemplate,
+                items: templates
+                    .map(
+                      (t) => DropdownMenuItem(
+                        value: t,
+                        child: Text(
+                          t,
+                          style: Theme.of(context).textTheme.bodyLarge,
+                        ),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (v) {
+                  if (v != null) setState(() => selectedTemplate = v);
+                },
+                isExpanded: true,
+              ),
+            ],
           ),
+          actionsPadding: const EdgeInsets.all(spacing24),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.primary,
+              ),
               child: Text("취소", style: Theme.of(context).textTheme.bodyLarge),
             ),
-            TextButton(
+            ElevatedButton(
               onPressed: () {
                 _createNewScheduleFromTemplate(
                   originalName,
                   selectedTemplate,
-                  date,
+                  startDate,
+                  endDate,
                 );
                 Navigator.pop(context); // Pop template selection dialog
               },
-              child: Text("추가", style: Theme.of(context).textTheme.bodyLarge),
+              style: ElevatedButton.styleFrom(
+                foregroundColor: AppColors.pureWhite,
+              ),
+              child: Text("추가"),
             ),
           ],
         ),
@@ -141,17 +208,17 @@ class _HomePageState extends State<HomePage> {
   Future<void> _createNewScheduleFromTemplate(
     String originalName,
     String templateName,
-    DateTime date,
+    DateTime startDate,
+    DateTime endDate,
   ) async {
     // 1. Save the main schedule entry and get its ID
-    final scheduleId = await saveSchedule(originalName, date);
+    final scheduleId = await saveSchedule(originalName, startDate, endDate);
 
     // 2. Apply the template structure using the new ID
     await _applyTemplateItems(scheduleId, templateName);
 
     // 3. Update local UI state
-    final key = DateTime(date.year, date.month, date.day);
-    _schedules.putIfAbsent(key, () => []).add(originalName);
+    _schedules.add(Schedule(id: scheduleId, text: originalName, startDate: startDate, endDate: endDate));
     if (!_sidebarItems.contains(originalName)) {
       _sidebarItems.add(originalName);
     }
@@ -753,29 +820,42 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  void _showTemplateChoiceDialog(String text, DateTime date) {
+  void _showTemplateChoiceDialog(String text, DateTime startDate, DateTime endDate) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: AppColors.pureWhite,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12.0),
+        ),
+        surfaceTintColor: Colors.transparent,
         title: Text("템플릿 사용", style: Theme.of(context).textTheme.displayMedium),
+        contentPadding: const EdgeInsets.all(spacing24),
         content: Text(
           "기본 제공 템플릿을 사용하시겠습니까?",
           style: Theme.of(context).textTheme.bodyLarge,
         ),
+        actionsPadding: const EdgeInsets.all(spacing24),
         actions: [
           TextButton(
             onPressed: () {
               Navigator.pop(context); // Pop choice dialog
-              _addSchedule(text, date);
+              _addSchedule(text, startDate, endDate);
             },
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.primary,
+            ),
             child: Text("아니오", style: Theme.of(context).textTheme.bodyLarge),
           ),
-          TextButton(
+          ElevatedButton(
             onPressed: () {
               Navigator.pop(context); // Pop choice dialog
-              _showTemplateSelectionDialog(text, date);
+              _showTemplateSelectionDialog(text, startDate, endDate);
             },
-            child: Text("예", style: Theme.of(context).textTheme.bodyLarge),
+            style: ElevatedButton.styleFrom(
+              foregroundColor: AppColors.pureWhite,
+            ),
+            child: Text("예"),
           ),
         ],
       ),
@@ -784,7 +864,8 @@ class _HomePageState extends State<HomePage> {
 
   void _showAddScheduleDialog() {
     final titleController = TextEditingController();
-    DateTime? pickedDate;
+    DateTime? pickedStartDate; // Changed to pickedStartDate
+    DateTime? pickedEndDate; // Added pickedEndDate
     String? currentDuplicateError; // Local variable for the dialog's state
 
     showDialog(
@@ -793,10 +874,16 @@ class _HomePageState extends State<HomePage> {
         return StatefulBuilder(
           builder: (context, setState) {
             return AlertDialog(
+              backgroundColor: AppColors.pureWhite,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12.0),
+              ),
+              surfaceTintColor: Colors.transparent,
               title: Text(
                 "일정 추가",
                 style: Theme.of(context).textTheme.displayMedium,
               ),
+              contentPadding: const EdgeInsets.all(spacing24),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -830,31 +917,53 @@ class _HomePageState extends State<HomePage> {
                       }
                     },
                   ),
-                  SizedBox(height: spacing16),
+                  const SizedBox(height: spacing16),
                   ElevatedButton(
                     onPressed: () async {
                       final selected = await showDatePicker(
                         context: context,
-                        initialDate: _focusedDay,
+                        initialDate: pickedStartDate ?? _focusedDay,
                         firstDate: DateTime(2000),
                         lastDate: DateTime(2100),
                       );
                       if (selected != null) {
                         setState(() {
-                          // Update dialog's state
-                          pickedDate = selected;
+                          pickedStartDate = selected;
                         });
                       }
                     },
                     child: Text(
-                      pickedDate == null
-                          ? "날짜 선택"
-                          : "${pickedDate!.year}년 ${pickedDate!.month}월 ${pickedDate!.day}일",
-                      style: Theme.of(context).textTheme.bodyLarge,
+                      pickedStartDate == null
+                          ? "시작 날짜 선택"
+                          : "${pickedStartDate!.year}년 ${pickedStartDate!.month}월 ${pickedStartDate!.day}일",
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: AppColors.pureWhite),
+                    ),
+                  ),
+                  const SizedBox(height: spacing8), // Added spacing
+                  ElevatedButton(
+                    onPressed: () async {
+                      final selected = await showDatePicker(
+                        context: context,
+                        initialDate: pickedEndDate ?? pickedStartDate ?? _focusedDay,
+                        firstDate: pickedStartDate ?? DateTime(2000),
+                        lastDate: DateTime(2100),
+                      );
+                      if (selected != null) {
+                        setState(() {
+                          pickedEndDate = selected;
+                        });
+                      }
+                    },
+                    child: Text(
+                      pickedEndDate == null
+                          ? "끝 날짜 선택"
+                          : "${pickedEndDate!.year}년 ${pickedEndDate!.month}월 ${pickedEndDate!.day}일",
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: AppColors.pureWhite),
                     ),
                   ),
                 ],
               ),
+              actionsPadding: const EdgeInsets.all(spacing24),
               actions: [
                 TextButton(
                   onPressed: () {
@@ -865,12 +974,33 @@ class _HomePageState extends State<HomePage> {
                     style: Theme.of(context).textTheme.bodyLarge,
                   ),
                 ),
-                TextButton(
+                ElevatedButton(
                   onPressed: () async {
                     final text = titleController.text.trim();
                     if (text.isEmpty) {
                       setState(() {
                         currentDuplicateError = "일정 내용을 입력해주세요.";
+                      });
+                      return;
+                    }
+
+                    if (pickedStartDate == null) {
+                      setState(() {
+                        currentDuplicateError = "시작 날짜를 선택해주세요.";
+                      });
+                      return;
+                    }
+
+                    if (pickedEndDate == null) {
+                      setState(() {
+                        currentDuplicateError = "끝 날짜를 선택해주세요.";
+                      });
+                      return;
+                    }
+
+                    if (pickedEndDate!.isBefore(pickedStartDate!)) {
+                      setState(() {
+                        currentDuplicateError = "끝 날짜는 시작 날짜보다 빠를 수 없습니다.";
                       });
                       return;
                     }
@@ -883,13 +1013,14 @@ class _HomePageState extends State<HomePage> {
                       return;
                     }
 
-                    final dateToUse = pickedDate ?? _focusedDay;
                     Navigator.pop(context); // Pop the initial dialog
-                    _showTemplateChoiceDialog(text, dateToUse);
+                    _showTemplateChoiceDialog(text, pickedStartDate!, pickedEndDate!); // Pass both dates
                   },
                   child: Text(
                     "다음",
-                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    foregroundColor: AppColors.pureWhite,
                   ),
                 ),
               ],
@@ -906,10 +1037,16 @@ class _HomePageState extends State<HomePage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: AppColors.pureWhite,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12.0),
+        ),
+        surfaceTintColor: Colors.transparent,
         title: Text(
           '일정 이름 수정',
           style: Theme.of(context).textTheme.displayMedium,
         ),
+        contentPadding: const EdgeInsets.all(spacing24),
         content: TextField(
           controller: titleController,
           autofocus: true,
@@ -918,12 +1055,13 @@ class _HomePageState extends State<HomePage> {
             labelStyle: Theme.of(context).textTheme.bodyLarge,
           ),
         ),
+        actionsPadding: const EdgeInsets.all(spacing24),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text('취소', style: Theme.of(context).textTheme.bodyLarge),
           ),
-          TextButton(
+          ElevatedButton(
             onPressed: () {
               final newName = titleController.text;
               if (newName.isNotEmpty && newName != oldName) {
@@ -931,7 +1069,7 @@ class _HomePageState extends State<HomePage> {
               }
               Navigator.pop(context);
             },
-            child: Text('저장', style: Theme.of(context).textTheme.bodyLarge),
+            child: Text('저장'),
           ),
         ],
       ),
@@ -939,8 +1077,9 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _updateScheduleName(String oldName, String newName) async {
-    final scheduleId = await _getScheduleIdByText(oldName);
-    if (scheduleId == null) return;
+    // Find the schedule by its old name
+    final scheduleToUpdate = _schedules.firstWhere((s) => s.text == oldName);
+    final scheduleId = scheduleToUpdate.id;
 
     // Update Firestore
     await FirebaseFirestore.instance
@@ -951,57 +1090,56 @@ class _HomePageState extends State<HomePage> {
         .update({'text': newName});
 
     // Update local state
-    final index = _sidebarItems.indexOf(oldName);
-    if (index != -1) {
-      _sidebarItems[index] = newName;
-    }
-
-    DateTime? keyToUpdate;
-    List<String>? listToUpdate;
-
-    for (var entry in _schedules.entries) {
-      if (entry.value.contains(oldName)) {
-        keyToUpdate = entry.key;
-        listToUpdate = entry.value;
-        break;
+    setState(() {
+      final index = _schedules.indexOf(scheduleToUpdate);
+      if (index != -1) {
+        _schedules[index] = Schedule(
+          id: scheduleToUpdate.id,
+          text: newName,
+          startDate: scheduleToUpdate.startDate,
+          endDate: scheduleToUpdate.endDate,
+        );
       }
-    }
-
-    if (keyToUpdate != null && listToUpdate != null) {
-      final itemIndex = listToUpdate.indexOf(oldName);
-      if (itemIndex != -1) {
-        listToUpdate[itemIndex] = newName;
-        _schedules[keyToUpdate] = listToUpdate;
+      // Also update sidebar items if necessary
+      final sidebarIndex = _sidebarItems.indexOf(oldName);
+      if (sidebarIndex != -1) {
+        _sidebarItems[sidebarIndex] = newName;
       }
-    }
-
-    setState(() {});
+    });
   }
 
   void _showDeleteConfirmDialog(String scheduleText) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: AppColors.pureWhite,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12.0),
+        ),
+        surfaceTintColor: Colors.transparent,
         title: Text('일정 삭제', style: Theme.of(context).textTheme.displayMedium),
+        contentPadding: const EdgeInsets.all(spacing24),
         content: Text(
           '$scheduleText 일정을 정말 삭제하시겠습니까?',
           style: Theme.of(context).textTheme.bodyLarge,
         ),
+        actionsPadding: const EdgeInsets.all(spacing24),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text('취소', style: Theme.of(context).textTheme.bodyLarge),
           ),
-          TextButton(
+          ElevatedButton(
             onPressed: () {
               _deleteSchedule(scheduleText);
               Navigator.pop(context);
             },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: AppColors.pureWhite,
+            ),
             child: Text(
               '삭제',
-              style: Theme.of(
-                context,
-              ).textTheme.bodyLarge?.copyWith(color: AppColors.error),
             ),
           ),
         ],
@@ -1010,8 +1148,9 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _deleteSchedule(String scheduleText) async {
-    final scheduleId = await _getScheduleIdByText(scheduleText);
-    if (scheduleId == null) return;
+    // Find the schedule by its text
+    final scheduleToDelete = _schedules.firstWhere((s) => s.text == scheduleText);
+    final scheduleId = scheduleToDelete.id;
 
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -1025,49 +1164,21 @@ class _HomePageState extends State<HomePage> {
         .delete();
 
     // Delete from local state
-    _sidebarItems.remove(scheduleText);
-    DateTime? keyToRemove;
-    for (var entry in _schedules.entries) {
-      if (entry.value.contains(scheduleText)) {
-        entry.value.remove(scheduleText);
-        if (entry.value.isEmpty) {
-          keyToRemove = entry.key;
-        }
-        break;
-      }
-    }
-    if (keyToRemove != null) {
-      _schedules.remove(keyToRemove);
-    }
-
-    setState(() {});
+    setState(() {
+      _schedules.removeWhere((s) => s.id == scheduleId);
+      _sidebarItems.remove(scheduleText);
+    });
   }
 
   Future<String?> _getScheduleIdByText(String text) async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('audits')
-        .doc(_auditId)
-        .collection('schedules')
-        .where('text', isEqualTo: text)
-        .limit(1)
-        .get();
-
-    if (snapshot.docs.isNotEmpty) {
-      return snapshot.docs.first.id;
-    }
-    return null;
+    final schedule = _schedules.firstWhereOrNull((s) => s.text == text);
+    return schedule?.id;
   }
 
   Future<bool> _checkDuplicateScheduleName(String scheduleName) async {
     if (scheduleName.isEmpty) return false;
-    final snapshot = await FirebaseFirestore.instance
-        .collection('audits')
-        .doc(_auditId)
-        .collection('schedules')
-        .where('text', isEqualTo: scheduleName)
-        .limit(1)
-        .get();
-    return snapshot.docs.isNotEmpty;
+    // Check if any existing schedule has the same name
+    return _schedules.any((s) => s.text == scheduleName);
   }
 
   @override
@@ -1209,6 +1320,9 @@ class _HomePageState extends State<HomePage> {
                     _selectedDay = sd;
                     _focusedDay = fd;
                   }),
+                  headerStyle: const HeaderStyle(
+                    formatButtonVisible: false,
+                  ),
                   calendarBuilders: CalendarBuilders(
                     markerBuilder: (ctx, day, events) {
                       final ev = _getSchedulesForDay(day);
@@ -1257,3 +1371,4 @@ class _HomePageState extends State<HomePage> {
     );
   }
 }
+

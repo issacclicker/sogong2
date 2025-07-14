@@ -4,8 +4,21 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'HomePage.dart';
 
-class AuditListPage extends StatelessWidget {
+class AuditListPage extends StatefulWidget {
   const AuditListPage({Key? key}) : super(key: key);
+
+  @override
+  State<AuditListPage> createState() => _AuditListPageState();
+}
+
+class _AuditListPageState extends State<AuditListPage> {
+  final _dueDateController = TextEditingController();
+
+  @override
+  void dispose() {
+    _dueDateController.dispose();
+    super.dispose();
+  }
 
   void _showAddAuditDialog(BuildContext context) {
     final titleController = TextEditingController();
@@ -57,6 +70,32 @@ class AuditListPage extends StatelessWidget {
                   ),
                 ),
               ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _dueDateController,
+                readOnly: true,
+                onTap: () async {
+                  DateTime? pickedDate = await showDatePicker(
+                    context: context,
+                    initialDate: DateTime.now(),
+                    firstDate: DateTime.now(),
+                    lastDate: DateTime(2101),
+                  );
+                  if (pickedDate != null) {
+                    _dueDateController.text = DateFormat('yyyy.MM.dd').format(pickedDate);
+                  }
+                },
+                decoration: const InputDecoration(
+                  labelText: '마감일',
+                  floatingLabelBehavior: FloatingLabelBehavior.always,
+                  enabledBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: Color(0xFFE0E0E0), width: 1),
+                  ),
+                  focusedBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: Color(0xFF3A49FF), width: 2),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -70,6 +109,11 @@ class AuditListPage extends StatelessWidget {
               final user = FirebaseAuth.instance.currentUser;
               final title = titleController.text.trim();
               final description = descriptionController.text.trim();
+              final dueDateText = _dueDateController.text.trim();
+              DateTime? dueDate;
+              if (dueDateText.isNotEmpty) {
+                dueDate = DateFormat('yyyy.MM.dd').parse(dueDateText);
+              }
 
               if (user != null && title.isNotEmpty) {
                 await FirebaseFirestore.instance.collection('audits').add({
@@ -77,11 +121,128 @@ class AuditListPage extends StatelessWidget {
                   'description': description,
                   'ownerId': user.uid,
                   'createdAt': Timestamp.now(),
+                  'dueDate': dueDate != null ? Timestamp.fromDate(dueDate) : null,
                 });
               }
               Navigator.pop(context);
             },
             child: const Text('추가', style: TextStyle(color: Color(0xFF3A49FF))),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditAuditDialog(BuildContext context, String auditId, Map<String, dynamic> currentData) {
+    final titleController = TextEditingController(text: currentData['title']);
+    final descriptionController = TextEditingController(text: currentData['description']);
+    final dueDateController = TextEditingController();
+
+    final Timestamp? currentDueDateTimestamp = currentData['dueDate'];
+    if (currentDueDateTimestamp != null) {
+      dueDateController.text = DateFormat('yyyy.MM.dd').format(currentDueDateTimestamp.toDate());
+    }
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: const Text(
+          '감사 수정',
+          style: TextStyle(
+            fontFamily: 'Spoqa Han Sans',
+            fontSize: 22,
+            fontWeight: FontWeight.w500,
+            color: Color(0xFF212121),
+          ),
+        ),
+        content: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: titleController,
+                decoration: const InputDecoration(
+                  labelText: '제목',
+                  floatingLabelBehavior: FloatingLabelBehavior.always,
+                  enabledBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: Color(0xFFE0E0E0), width: 1),
+                  ),
+                  focusedBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: Color(0xFF3A49FF), width: 2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: descriptionController,
+                decoration: const InputDecoration(
+                  labelText: '설명',
+                  floatingLabelBehavior: FloatingLabelBehavior.always,
+                  enabledBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: Color(0xFFE0E0E0), width: 1),
+                  ),
+                  focusedBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: Color(0xFF3A49FF), width: 2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: dueDateController,
+                readOnly: true,
+                onTap: () async {
+                  DateTime? pickedDate = await showDatePicker(
+                    context: context,
+                    initialDate: currentDueDateTimestamp?.toDate() ?? DateTime.now(),
+                    firstDate: DateTime.now(),
+                    lastDate: DateTime(2101),
+                  );
+                  if (pickedDate != null) {
+                    dueDateController.text = DateFormat('yyyy.MM.dd').format(pickedDate);
+                  }
+                },
+                decoration: const InputDecoration(
+                  labelText: '마감일',
+                  floatingLabelBehavior: FloatingLabelBehavior.always,
+                  enabledBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: Color(0xFFE0E0E0), width: 1),
+                  ),
+                  focusedBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: Color(0xFF3A49FF), width: 2),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소', style: TextStyle(color: Color(0xFF666666))),
+          ),
+          TextButton(
+            onPressed: () async {
+              final title = titleController.text.trim();
+              final description = descriptionController.text.trim();
+              final dueDateText = dueDateController.text.trim();
+              DateTime? dueDate;
+              if (dueDateText.isNotEmpty) {
+                dueDate = DateFormat('yyyy.MM.dd').parse(dueDateText);
+              }
+
+              if (title.isNotEmpty) {
+                await FirebaseFirestore.instance.collection('audits').doc(auditId).update({
+                  'title': title,
+                  'description': description,
+                  'dueDate': dueDate != null ? Timestamp.fromDate(dueDate) : null,
+                });
+              }
+              Navigator.pop(context);
+            },
+            child: const Text('수정', style: TextStyle(color: Color(0xFF3A49FF))),
           ),
         ],
       ),
@@ -157,8 +318,10 @@ class AuditListPage extends StatelessWidget {
             itemBuilder: (context, index) {
               final data = docs[index].data() as Map<String, dynamic>;
               final auditId = docs[index].id;
-              final Timestamp timestamp = data['createdAt'] ?? Timestamp.now();
-              final date = DateFormat('yyyy.MM.dd').format(timestamp.toDate());
+              final Timestamp? dueDateTimestamp = data['dueDate'];
+              final String dueDateText = dueDateTimestamp != null
+                  ? '마감일 : '+DateFormat('yyyy.MM.dd').format(dueDateTimestamp.toDate())
+                  : '마감일 미지정';
 
               return Card(
                 elevation: 1,
@@ -192,6 +355,15 @@ class AuditListPage extends StatelessWidget {
                         ),
                         const SizedBox(height: 8),
                         Text(
+                          dueDateText,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Color(0xFF666666),
+                            height: 1.5,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
                           data['description'] ?? '설명 없음',
                           style: const TextStyle(
                             fontSize: 14,
@@ -201,13 +373,45 @@ class AuditListPage extends StatelessWidget {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 16),
-                        Text(
-                          date,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Color(0xFF999999),
-                          ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.edit, color: Color(0xFF999999)),
+                              onPressed: () => _showEditAuditDialog(context, auditId, data),
+                              tooltip: '감사 수정',
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete, color: Color(0xFF999999)),
+                              onPressed: () async {
+                                // Show confirmation dialog
+                                final bool? confirmDelete = await showDialog<bool>(
+                                  context: context,
+                                  builder: (BuildContext context) {
+                                    return AlertDialog(
+                                      title: const Text('감사 삭제'),
+                                      content: const Text('정말로 이 감사를 삭제하시겠습니까?'),
+                                      actions: <Widget>[
+                                        TextButton(
+                                          onPressed: () => Navigator.of(context).pop(false),
+                                          child: const Text('취소'),
+                                        ),
+                                        TextButton(
+                                          onPressed: () => Navigator.of(context).pop(true),
+                                          child: const Text('삭제'),
+                                        ),
+                                      ],
+                                    );
+                                  },
+                                );
+
+                                if (confirmDelete == true) {
+                                  await FirebaseFirestore.instance.collection('audits').doc(auditId).delete();
+                                }
+                              },
+                              tooltip: '감사 삭제',
+                            ),
+                          ],
                         ),
                       ],
                     ),
