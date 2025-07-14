@@ -1,10 +1,13 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:path/path.dart' as path;
+import 'package:http/http.dart' as http; // Add this line
 
 class GalleryUploadPage extends StatefulWidget {
   final String auditId;
@@ -25,10 +28,14 @@ class GalleryUploadPage extends StatefulWidget {
 }
 
 class _GalleryUploadPageState extends State<GalleryUploadPage> {
-  XFile? _pickedImage;
+  List<XFile> _imageFiles = []; // Changed to list
   final ImagePicker _picker = ImagePicker();
-  String? _imageUrl;
-  bool _isLoading = true;
+  bool _isUploading = false;
+  bool _isLoading = false; // Added
+  List<String> _downloadedImageUrls = []; // Added
+  Map<String, Uint8List> _imageBytesCache = {}; // New cache for image bytes
+  late PageController _pageController; // Added
+  int _currentPage = 0; // Added
 
   // SnackBar를 표시하는 헬퍼 함수
   void _showSnackBar(String message, {bool isError = false}) {
@@ -41,27 +48,94 @@ class _GalleryUploadPageState extends State<GalleryUploadPage> {
     );
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _loadImageFromFirestore();
-  }
+  Future<void> _deleteImage(int index) async {
+    if (index < 0 || index >= _downloadedImageUrls.length) {
+      _showSnackBar('삭제할 이미지를 찾을 수 없습니다.', isError: true);
+      return;
+    }
 
-  // itemId가 변경될 때마다 이미지를 다시 로드
-  @override
-  void didUpdateWidget(covariant GalleryUploadPage oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.itemId != oldWidget.itemId) {
-      _loadImageFromFirestore();
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      _showSnackBar('로그인이 필요합니다.', isError: true);
+      return;
+    }
+
+    final imageUrlToDelete = _downloadedImageUrls[index];
+
+    setState(() {
+      _isLoading = true; // Indicate loading
+    });
+
+    try {
+      // 1. Delete from Firebase Storage
+      final storageRef = FirebaseStorage.instance.refFromURL(imageUrlToDelete);
+      await storageRef.delete();
+
+      // 2. Remove from local list
+      _downloadedImageUrls.removeAt(index);
+      _imageBytesCache.remove(imageUrlToDelete); // Remove from cache
+
+      // 3. Update Firestore document
+      final docRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('audits')
+          .doc(widget.auditId)
+          .collection('schedules')
+          .doc(widget.scheduleId)
+          .collection('categories')
+          .doc(widget.itemId);
+
+      await docRef.update({'imageUrls': _downloadedImageUrls});
+
+      _showSnackBar('사진이 성공적으로 삭제되었습니다.');
+
+      // Adjust _currentPage if the last image was deleted
+      if (_currentPage >= _downloadedImageUrls.length && _downloadedImageUrls.isNotEmpty) {
+        _pageController.jumpToPage(_downloadedImageUrls.length - 1);
+      } else if (_downloadedImageUrls.isEmpty) {
+        _pageController.jumpToPage(0); // Or handle empty state
+      }
+    } catch (e) {
+      print("Error deleting image: $e");
+      _showSnackBar('사진 삭제 실패: $e', isError: true);
+    } finally {
+      setState(() {
+        _isLoading = false;
+        // Ensure UI updates after deletion
+        if (_downloadedImageUrls.isEmpty) {
+          _currentPage = 0; // Reset current page if no images left
+        }
+      });
     }
   }
 
+  @override
+  void initState() {
+    super.initState();
+    _loadImageUrlsFromFirestore(); // Call the new function
+    _pageController = PageController(); // Initialize PageController
+    _pageController.addListener(() {
+      if (_pageController.page != null && _pageController.page!.round() != _currentPage) {
+        setState(() {
+          _currentPage = _pageController.page!.round();
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose(); // Dispose PageController
+    super.dispose();
+  }
+
   // Firestore에서 이미지 URL 불러오기
-  Future<void> _loadImageFromFirestore() async {
+  Future<void> _loadImageUrlsFromFirestore() async {
     setState(() {
       _isLoading = true;
-      _imageUrl = null;
-      _pickedImage = null;
+      _imageFiles = []; // Clear previously picked images
+      _downloadedImageUrls = []; // Clear previously downloaded images
     });
 
     final user = FirebaseAuth.instance.currentUser;
@@ -82,52 +156,76 @@ class _GalleryUploadPageState extends State<GalleryUploadPage> {
           .doc(widget.itemId)
           .get();
 
-      if (docSnapshot.exists && docSnapshot.data()!.containsKey('imageUrl')) {
+      if (docSnapshot.exists) {
+        final data = docSnapshot.data()!;
+        List<String> urls = [];
+        if (data.containsKey('imageUrls')) {
+          urls = List<String>.from(data['imageUrls']);
+        } else if (data.containsKey('imageUrl')) { // Backward compatibility
+          urls = [data['imageUrl']];
+        }
+
+        _downloadedImageUrls = urls;
+        _imageBytesCache.clear(); // Clear cache before loading new images
+
+        for (String url in urls) {
+          try {
+            final ref = FirebaseStorage.instance.refFromURL(url);
+            final Uint8List? bytes = (await http.get(Uri.parse(url))).bodyBytes;
+            if (bytes != null && bytes.isNotEmpty) {
+              _imageBytesCache[url] = bytes;
+            }
+          } catch (e) {
+            print("Error downloading image from $url: $e (Type: ${e.runtimeType})");
+          }
+        }
+        print('Loaded imageUrls: $_downloadedImageUrls');
         setState(() {
-          _imageUrl = docSnapshot.data()!['imageUrl'];
+          _downloadedImageUrls = urls; // Ensure this is updated within setState
+          _imageBytesCache = _imageBytesCache; // Trigger rebuild with updated cache
+          _isLoading = false;
         });
       }
     } catch (e) {
-      // 에러 처리
-      print("Error loading image: $e");
+      print("Error loading image URLs: $e");
+      setState(() => _isLoading = false); // Ensure loading state is reset even on error
     }
-
-    setState(() => _isLoading = false);
   }
 
   // 갤러리에서 이미지 선택 및 업로드
-  Future<void> _pickAndUploadImage() async {
-    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
-    if (image == null) return;
+  Future<void> _pickAndUploadImages() async {
+    final List<XFile> selectedImages = await _picker.pickMultiImage();
+    if (selectedImages.isEmpty) return;
 
     setState(() {
-      _pickedImage = image;
+      _imageFiles = selectedImages;
       _isLoading = true;
     });
 
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    setState(() => _isLoading = true);
-
     try {
-      // 1. Firebase Storage에 이미지 업로드
-      final storageRef = FirebaseStorage.instance.ref().child(
-        'uploads/${user.uid}/${widget.auditId}/${widget.scheduleId}/${widget.itemId}.jpg',
-      );
+      List<String> newDownloadUrls = [];
+      for (XFile image in _imageFiles) {
+        final String fileName = '${DateTime.now().millisecondsSinceEpoch}_${path.basename(image.path)}';
+        final storageRef = FirebaseStorage.instance.ref().child(
+          'uploads/${user.uid}/${widget.auditId}/${widget.scheduleId}/${widget.itemId}/$fileName',
+        );
 
-      if (kIsWeb) {
-        // 웹 환경에서는 putData 사용
-        final imageData = await image.readAsBytes();
-        await storageRef.putData(imageData);
-      } else {
-        // 모바일/데스크톱 환경에서는 putFile 사용
-        await storageRef.putFile(File(image.path));
+        final metadata = SettableMetadata(contentType: image.mimeType);
+        if (kIsWeb) {
+          final imageData = await image.readAsBytes();
+          await storageRef.putData(imageData, metadata);
+        } else {
+          await storageRef.putFile(File(image.path), metadata);
+        }
+        final downloadUrl = await storageRef.getDownloadURL();
+        newDownloadUrls.add(downloadUrl);
       }
-      final downloadUrl = await storageRef.getDownloadURL();
 
-      // 2. Firestore 문서에 이미지 URL 업데이트 (set with merge: true 사용)
-      await FirebaseFirestore.instance
+      // Get existing image URLs
+      final docRef = FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .collection('audits')
@@ -135,27 +233,39 @@ class _GalleryUploadPageState extends State<GalleryUploadPage> {
           .collection('schedules')
           .doc(widget.scheduleId)
           .collection('categories')
-          .doc(widget.itemId)
-          .set(
-            {'imageUrl': downloadUrl, 'uploadedAt': Timestamp.now()},
-            SetOptions(merge: true), // 문서가 없으면 생성, 있으면 병합
-          );
+          .doc(widget.itemId);
+
+      final docSnapshot = await docRef.get();
+      List<String> existingImageUrls = [];
+      if (docSnapshot.exists) {
+        final data = docSnapshot.data()!;
+        if (data.containsKey('imageUrls')) {
+          existingImageUrls = List<String>.from(data['imageUrls']);
+        } else if (data.containsKey('imageUrl')) { // Backward compatibility
+          existingImageUrls = [data['imageUrl']];
+        }
+      }
+
+      // Combine existing and new URLs
+      existingImageUrls.addAll(newDownloadUrls);
+
+      // Update Firestore document with new imageUrls
+      await docRef.set(
+        {'imageUrls': existingImageUrls, 'uploadedAt': Timestamp.now()},
+        SetOptions(merge: true),
+      );
 
       setState(() {
-        _imageUrl = downloadUrl;
-        _pickedImage = null; // 업로드 성공 후 선택된 이미지 초기화
+        _downloadedImageUrls = existingImageUrls;
+        _imageFiles = []; // Clear picked images after upload
       });
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('사진이 성공적으로 업로드되었습니다.')));
+        _showSnackBar('사진이 성공적으로 업로드되었습니다.');
       }
     } catch (e) {
-      print("Error uploading image: $e");
+      print("Error uploading images: $e");
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('사진 업로드 실패: $e')));
+        _showSnackBar('사진 업로드 실패: $e', isError: true);
       }
     } finally {
       setState(() => _isLoading = false);
@@ -164,46 +274,130 @@ class _GalleryUploadPageState extends State<GalleryUploadPage> {
 
   @override
   Widget build(BuildContext context) {
-    Widget imageWidget;
-    if (_isLoading) {
-      imageWidget = const CircularProgressIndicator();
-    } else if (_pickedImage != null) {
-      // 웹 환경에서는 Image.network 사용, 그 외에는 Image.file 사용
-      if (kIsWeb) {
-        imageWidget = Image.network(
-          _pickedImage!.path,
-          width: 300,
-          fit: BoxFit.contain,
-        );
-      } else {
-        imageWidget = Image.file(
-          File(_pickedImage!.path),
-          width: 300,
-          fit: BoxFit.contain,
-        );
-      }
-    } else if (_imageUrl != null) {
-      imageWidget = Image.network(_imageUrl!, width: 300, fit: BoxFit.contain);
-    } else {
-      imageWidget = const Text("업로드된 사진이 없습니다.");
-    }
+    final totalImages = _imageFiles.isNotEmpty ? _imageFiles.length : _downloadedImageUrls.length;
+    final currentImageIndex = totalImages > 0 ? _currentPage + 1 : 0;
 
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Text(
-          widget.itemDisplayName,
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 20),
-        SizedBox(height: 300, child: Center(child: imageWidget)),
-        const SizedBox(height: 20),
-        ElevatedButton(
-          onPressed: _pickAndUploadImage,
-          child: const Text("갤러리에서 사진 선택/변경"),
-        ),
-      ],
+    return Scaffold(
+      
+      body: Column(
+        children: [
+          Text(
+            widget.itemDisplayName,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 20),
+          if (_isLoading)
+            const Expanded(child: Center(child: CircularProgressIndicator()))
+          else if (totalImages > 0)
+            Expanded(
+              child: Stack(
+                children: [
+                  PageView.builder(
+                    controller: _pageController,
+                    itemCount: totalImages,
+                    onPageChanged: (index) {
+                      setState(() {
+                        _currentPage = index;
+                      });
+                    },
+                    itemBuilder: (context, index) {
+                      if (_imageFiles.isNotEmpty) {
+                        return kIsWeb
+                            ? Image.network(_imageFiles[index].path, fit: BoxFit.contain)
+                            : Image.file(File(_imageFiles[index].path), fit: BoxFit.contain);
+                      } else {
+                        final imageUrl = _downloadedImageUrls[index];
+                        final imageBytes = _imageBytesCache[imageUrl];
+                        if (imageBytes != null) {
+                          return Image.memory(imageBytes, fit: BoxFit.contain);
+                        } else {
+                          return const Center(child: CircularProgressIndicator());
+                        }
+                      }
+                    },
+                  ),
+                  Positioned(
+                    top: 10,
+                    right: 10,
+                    child: IconButton(
+                      icon: const Icon(Icons.delete_forever, color: Colors.red, size: 30),
+                      onPressed: () => _deleteImage(_currentPage),
+                    ),
+                  ),
+                  Positioned(
+                    bottom: 10,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: Text(
+                        '$currentImageIndex/$totalImages',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          backgroundColor: Colors.black54,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            const Expanded(child: Center(child: Text("업로드된 사진이 없습니다."))),
+          const SizedBox(height: 10),
+          if (totalImages > 0)
+            SizedBox(
+              height: 80, // Height for the thumbnail strip
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: totalImages,
+                itemBuilder: (context, index) {
+                  Widget imageWidget;
+                  if (_imageFiles.isNotEmpty) {
+                    imageWidget = kIsWeb
+                        ? Image.network(_imageFiles[index].path, fit: BoxFit.cover)
+                        : Image.file(File(_imageFiles[index].path), fit: BoxFit.cover);
+                  } else {
+                    final imageUrl = _downloadedImageUrls[index];
+                    final imageBytes = _imageBytesCache[imageUrl];
+                    if (imageBytes != null) {
+                      imageWidget = Image.memory(imageBytes, fit: BoxFit.cover);
+                    } else {
+                      imageWidget = const Center(child: CircularProgressIndicator());
+                    }
+                  }
+                  return GestureDetector(
+                    onTap: () {
+                      _pageController.animateToPage(
+                        index,
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.ease,
+                      );
+                    },
+                    child: Container(
+                      width: 80,
+                      margin: const EdgeInsets.symmetric(horizontal: 5),
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: _currentPage == index ? Colors.blueAccent : Colors.transparent,
+                          width: 3,
+                        ),
+                      ),
+                      child: imageWidget,
+                    ),
+                  );
+                },
+              ),
+            ),
+          const SizedBox(height: 20),
+          ElevatedButton(
+            onPressed: _pickAndUploadImages,
+            child: const Text("갤러리에서 사진 선택/변경"),
+          ),
+          const SizedBox(height: 20),
+        ],
+      ),
     );
   }
 }
