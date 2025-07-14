@@ -48,6 +48,8 @@ class _LoginPageState extends State<LoginPage> {
         email: emailController.text.trim(),
         password: passwordController.text.trim(),
       );
+      // 로그인 성공 후에도 영구적인 인증 상태를 다시 설정
+      await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
       Navigator.pushReplacementNamed(context, '/audits');
     } on FirebaseAuthException catch (e) {
       String message = '로그인 실패';
